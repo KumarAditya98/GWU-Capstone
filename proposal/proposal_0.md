@@ -10,41 +10,29 @@
 
 ## 1 Objective:  
  
-            2D image understanding is a complex problem 
-            within Computer Vision. It goes further than 
-            identifying the objects in an image, and instead 
-            it attempts to understand the scene at par with 
-            human level scene comprehension. Graphs provide 
-            a natural way to represent the relational 
-            arrangement between objects in an image. 
-            The goal of this project is to explore and 
-            implement GNN based solutions for a range of 
-            vision-language tasks including (1) image captioning, 
-            (2) Visual Question Answering(VQA), and (3) image retrieval.
-            The research paper - https://arxiv.org/pdf/2303.03761.pdf 
-            provides a comprehensive survey of contemporary 
-            GNN based approaches for mentioned tasks which 
-            will be used as a reference. In addition, 
-            PyG package and its documentation will be explored 
-            for GNN implementation.
-            Finally, we write a journal paper documenting the 
-            effectiveness of GNN based approaches for these tasks. 
+            2D image understanding is a complex problem within Computer Vision. 
+            It goes further than identifying the objects in an image, and instead it attempts to 
+            understand the scene at par with human level scene comprehension. Graphs provide a natural way 
+            to represent the relational arrangement between objects in an image. 
+            The goal of this project is to explore and implement GNN based solutions for a range of vision-language tasks including 
+            (1) image captioning, (2) Visual Question Answering(VQA), and (3) image retrieval.
+            The research paper - https://arxiv.org/pdf/2303.03761.pdf provides a comprehensive survey of contemporary 
+            GNN based approaches for mentioned tasks which will be used as a reference. In addition, 
+            PyG package and its documentation will be explored for GNN implementation.
+            Finally, we write a journal paper documenting the effectiveness of GNN based approaches for these tasks. 
             
 
 ## 2 Dataset:  
 
             Vision-language tasks have their own unique datasets. 
-            The aforementioned research paper cites multiple 
-            standard datasets that are used as benchmark for 
-            each vision-language task. These datasets will be 
-            explored and picked based on availability, viability 
+            The aforementioned research paper cites multiple standard datasets that are used as benchmark for 
+            each vision-language task. These datasets will be explored and picked based on availability, viability 
             and sub-task applicability.  
             
 
 ## 3 Rationale:  
 
-            This project is going to help machine learning and 
-            deep learning researches to understand contemporary 
+            This project is going to help machine learning and deep learning researches to understand contemporary 
             GNN based approaches for vision-language image understanding.
             
 
@@ -80,7 +68,10 @@
 
 ## 7 Possible Issues:  
 
-            The challenge is understanding the GNN in great detail. The vision-language tasks mentioned have various approaches to them. Selecting the right approach will be challenging. A comparative analysis between traditional deep learning methodologies for the same tasks will be ideal, however, implementing just the GNN approach may prove too challenging. 
+            The challenge is understanding the GNN in great detail. 
+            The vision-language tasks mentioned have various approaches to them. Selecting the right approach will be challenging. 
+            A comparative analysis between traditional deep learning methodologies for the same tasks will be ideal, however, 
+            implementing just the GNN approach may prove too challenging. 
             
 
 
