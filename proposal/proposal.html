@@ -1,7 +1,7 @@
 <h1>Capstone Proposal</h1>
 <h2>Graph Neural Networks - Vision-Language Image Understanding</h2>
-<h3>Proposed by: Aditya Kumar, Udbhav Kush, Anjali Mudgal</h3>
-<h4>Email: aditya_kumar@gwu.edu; ukush4@gwu.edu; amudgal26@gwu.edu</h4>
+<h3>Proposed by: Aditya Kumar, Anjali Mudgal, Udbhav Kush</h3>
+<h4>Email: aditya_kumar@gwu.edu; amudgal26@gwu.edu; ukush4@gwu.edu</h4>
 <h4>Advisor: Amir Jafari</h4>
 <h4>The George Washington University, Washington DC</h4>
 <h4>Data Science Program</h4>
@@ -10,18 +10,22 @@
         It goes further than identifying the objects in an image, and instead it attempts to 
         understand the scene at par with human level scene comprehension. Graphs provide a natural way 
         to represent the relational arrangement between objects in an image. 
-        The goal of this project is to explore and implement GNN based solutions for a range of vision-language tasks like 
+        The goal of this project is to explore and implement GNN based solutions for a range of vision-language tasks including 
         (1) image captioning, and (2) Visual Question Answering(VQA).
         The research paper - https://arxiv.org/pdf/2303.03761.pdf provides a comprehensive survey of contemporary 
         GNN based approaches for mentioned tasks which will be used as a reference. In addition, 
         PyG package and its documentation will be explored for GNN implementation.
-        Finally, we write a journal paper documenting the effectiveness of GNN based approaches for these tasks and compare them with traditional methods. 
+        Finally, we write a journal paper documenting the effectiveness of GNN based approaches for these tasks. 
 </code></pre>
+<p><img src="2024_Fall_0.png" alt="Figure 1: Example figure">
+<em>Figure 1: Caption</em></p>
 <h2>2 Dataset:</h2>
 <pre><code>        Vision-language tasks have their own unique datasets. 
         The aforementioned research paper cites multiple standard datasets that are used as benchmark for 
         each vision-language task. These datasets will be explored and picked based on availability, viability 
-        and sub-task applicability.  
+        and sub-task applicability.
+        For image captioning, we plan to use the MS COCO dataset. Link to the dataset: https://cocodataset.org/#home
+        For VQA, we plan to use a subset of CLEVR dataset. Link to the dataset: https://cs.stanford.edu/people/jcjohns/clevr/
 </code></pre>
 <h2>3 Rationale:</h2>
 <pre><code>        This project is going to help machine learning and deep learning researches to understand contemporary 
@@ -30,8 +34,8 @@
 <h2>4 Approach:</h2>
 <pre><code>        We plan on approaching this capstone through several steps.  
 
-        1. Literature review of all 3 vision-language tasks.
-        2. Exploring GNN and their implementation through PyG documentation.  
+        1. Literature review of the 2 vision-language tasks.
+        2. Exploring GNN and their implementation through PyG documentation and online course of GNN.  
         3. Create a basic GNN code (basic code: Data loaders, models).
         4. Create modular and reusable codes. 
         5. Work on specific application.
@@ -40,7 +44,7 @@
 </code></pre>
 <h2>5 Timeline:</h2>
 <pre><code>        This is a rough time line for this project:  
-        - (1 Weeks) Literature review on application.
+        - (1 Weeks) Literature review on application coming up with the pipeline for the task.
         - (1 Weeks) Exploring PyG documentation and understanding GNNs.  
         - (2 Weeks) Basic GNN code and documentation.
         - (1 Weeks) Modular reusable class and functions.  
