@@ -17,8 +17,8 @@ Finally, we write a journal paper documenting the effectiveness of GNN based app
 
 ## 2 Dataset:  
 
-Vision-language tasks have their own unique datasets. The aforementioned research paper cites multiple standard datasets that are used as benchmark for each vision-language task. These datasets will be explored and picked based on availability, viability and sub-task applicability.
-For image captioning, we plan to use the MS COCO dataset. Link to the dataset: https://cocodataset.org/#home
+Vision-language tasks have their own unique datasets. The aforementioned research paper cites multiple standard datasets that are used as benchmark for each vision-language task. These datasets will be explored and picked based on availability, viability and sub-task applicability.   
+For image captioning, we plan to use the MS COCO dataset. Link to the dataset: https://cocodataset.org/#home   
 For VQA, we plan to use a subset of CLEVR dataset. Link to the dataset: https://cs.stanford.edu/people/jcjohns/clevr/
             
 
