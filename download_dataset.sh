@@ -21,11 +21,20 @@ mkdir vg
 cd vg
 echo "Downloading Visual Genome dataset."
 wget https://cs.stanford.edu/people/rak248/VG_100K_2/images.zip
+wget https://cs.stanford.edu/people/rak248/VG_100K_2/images2.zip
 
-echo "Unzipping Coco dataset."
-unzip images.zip
 
-rm images.zip
+echo "Unzipping Visual Genome dataset."
+unzip '*.zip'
+
+mkdir image
+
+mv VG_100K/* image
+mv VG_100K_2/* image
+rmdir VG_100K
+rmdir VG_100K_2
+
+rm *.zip
 
 cd ..
 
