@@ -1,12 +1,12 @@
-vqa_root: '//home/ubuntu/capstone/dataset/vqa_v2/'
-vg_root:  '/home/ubuntu/capstone/dataset/vg/'
+vqa_root: '/home/ubuntu/VQA/dataset/vqa_v2/'
+vg_root:  '/home/ubuntu/VQA/dataset/vg/'
 train_files: ['vqa_train','vqa_val','vg_qa']
 ann_root: 'annotation'
 
 # set pretrained as a file path or an url
 pretrained: 'https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model_base_vqa_capfilt_large.pth'
 
-# size of vit model; base or large
+# size of vit models; base or large
 
 vit: 'base'
 batch_size_train: 16
