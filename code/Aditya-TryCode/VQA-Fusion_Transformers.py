@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Tuple
 from datasets import load_dataset, set_caching_enabled
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from transformers import (
@@ -46,71 +47,55 @@ if device.type == 'cuda':
 # print('Allocated:', round(torch.cuda.memory_allocated(0)/1024**3,1), 'GB')
 # print('Cached:   ', round(torch.cuda.memory_reserved(0)/1024**3,1), 'GB')
 
-# Dataset pre-processing
-import pandas as pd
-from sklearn.model_selection import train_test_split
-import re
-import os
-import argparse
-import yaml
-from typing import Text
-import logging
+# Dataset pre-processing - Can employ this methodology if target is small phrase/one word answer type of problems.
+# Pre-processed the dataset - split it into question - answer - image combination for train and eval.
+# Extracted all the answers and created an answer space (vocabulary or classes) since this is a small dataset - only 500 classes total.
+# All the questions have 1-word/phrase answer, so we consider the entire vocabulary of answers available (answer space) & treat them as labels. This converts the visual question answering into a multi-class classification problem.
 
-def processDaquarDataset(config_path: Text) -> None:
-    with open(config_path) as conf_file:
-        config = yaml.safe_load(conf_file)
+dataset = load_dataset(
+    "csv",
+    data_files={
+        "train": os.path.join(os.getcwd(), "dataset", "data_train.csv"),
+        "test": os.path.join(os.getcwd(), "dataset", "data_eval.csv")
+    }
+)
 
-    logging.basicConfig(level=logging.INFO)
+with open(os.path.join(os.getcwd(), "dataset", "answer_space.txt")) as f:
+    answer_space = f.read().splitlines()
 
-    image_pattern = re.compile("( (in |on |of )?(the |this )?(image\d*) \?)")
+# For handling multiple answers for the same question - taking the top choice but we need a better methodology for this - why not make it multilabel problem?
+# Also added a label column to the dataset that maps the index of the answer from the answer space created while processing the dataset.
+dataset = dataset.map(
+    lambda examples: {
+        'label': [
+            answer_space.index(ans.replace(" ", "").split(",")[0]) # Select the 1st answer if multiple answers are provided
+            for ans in examples['answer']
+        ]
+    },
+    batched=True
+)
+print(dataset)
 
-    with open(os.path.join(config["data"]["dataset_folder"], config["data"]["all_qa_pairs_file"])) as f:
-        qa_data = [x.replace("\n", "") for x in f.readlines()]
-    logging.info("Loaded all question-answer pairs")
+# Looking at some question-answering pairs
+from IPython.display import display
+import matplotlib.pyplot as plt
+import PIL
 
-    # with open("train_images_list.txt") as f:
-    #     train_imgs = [x.replace("\n", "") for x in f.readlines()]
+def showExample(train=True, id=None):
+    if train:
+        data = dataset["train"]
+    else:
+        data = dataset["test"]
+    if id == None:
+        id = np.random.randint(len(data))
+    image = Image.open(os.path.join(os.getcwd(), "dataset", "images", data[id]["image_id"] + ".png"))
+    display(image)
+    #img = PIL.Image.open(...)
+    #plt.imshow(image)
+    #plt.show()
+    # with Image.open(os.path.join(os.getcwd(), "dataset", "images", data[id]["image_id"] + ".png")) as image:
+    #     image.show()
+    print("Question:\t", data[id]["question"])
+    print("Answer:\t\t", data[id]["answer"], "(Label: {0})".format(data[id]["label"]))
 
-    # with open("test_images_list.txt") as f:
-    #     test_imgs = [x.replace("\n", "") for x in f.readlines()]
-
-    df = pd.DataFrame(
-        {config["data"]["question_col"]: [], config["data"]["answer_col"]: [], config["data"]["image_col"]: []})
-
-    logging.info("Processing raw QnA pairs...")
-    for i in range(0, len(qa_data), 2):
-        img_id = image_pattern.findall(qa_data[i])[0][3]
-        question = qa_data[i].replace(image_pattern.findall(qa_data[i])[0][0], "")
-        record = {
-            config["data"]["question_col"]: question,
-            config["data"]["answer_col"]: qa_data[i + 1],
-            config["data"]["image_col"]: img_id,
-        }
-        df = df.append(record, ignore_index=True)
-
-    logging.info("Creating space of all possible answers")
-    answer_space = []
-    for ans in df.answer.to_list():
-        answer_space = answer_space + [ans] if "," not in ans else answer_space + ans.replace(" ", "").split(",")
-
-    answer_space = list(set(answer_space))
-    answer_space.sort()
-    with open(os.path.join(config["data"]["dataset_folder"], config["data"]["answer_space"]), "w") as f:
-        f.writelines("\n".join(answer_space))
-
-    # train_df = df[df.image_id.isin(train_imgs)]
-    # test_df = df[df.image_id.isin(test_imgs)]
-
-    logging.info("Splitting into train & eval sets")
-    train_df, test_df = train_test_split(df, test_size=0.2, random_state=42)
-
-    train_df.to_csv(os.path.join(config["data"]["dataset_folder"], config["data"]["train_dataset"]), index=None)
-    test_df.to_csv(os.path.join(config["data"]["dataset_folder"], config["data"]["eval_dataset"]), index=None)
-    # df.to_csv("data.csv", index=None)
-
-if __name__ == "__main__":
-    args_parser = argparse.ArgumentParser()
-    args_parser.add_argument('--config', dest='config', required=True)
-    args = args_parser.parse_args()
-
-    processDaquarDataset(args.config)
+showExample()
