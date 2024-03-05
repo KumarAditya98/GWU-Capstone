@@ -152,3 +152,10 @@ def create_dataset( config, min_scale=0.5):
                             train_files=config['train_files'], split='train')
     test_dataset = vqa_dataset(transform_test, config['ann_root'], config['vqa_root'], config['vg_root'], split='test')
     return train_dataset, test_dataset
+
+def create_sampler(datasets, shuffles, num_tasks, global_rank):
+    samplers = []
+    for dataset,shuffle in zip(datasets,shuffles):
+        sampler = torch.utils.data.DistributedSampler(dataset, num_replicas=num_tasks, rank=global_rank, shuffle=shuffle)
+        samplers.append(sampler)
+    return samplers
