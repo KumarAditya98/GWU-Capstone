@@ -1,0 +1,7 @@
+medical_data_root: '//home/ubuntu/capstone/dataset/medical_data/'
+train_data : 'Train/ImageClef-2019-VQA-Med-Training'
+val_data : 'Val/ImageClef-2019-VQA-Med-Validation'
+test_data : 'Test/VQAMed2019Test'
+
+BATCH_SIZE : 5
+EPOCH : 2
