@@ -1,4 +1,4 @@
-medical_data_root: '//home/ubuntu/VQA/dataset/medical_data/'
+medical_data_root: '//home/ubuntu/capstone/dataset/medical_data/'
 #train_data : 'train'
 #val_data : 'val'
 #test_data : 'test'
