@@ -17,8 +17,8 @@ if not os.path.exists(EXCEL_FOLDER):
     raise FileNotFoundError(f"The folder {EXCEL_FOLDER} does not exist. Load data and run preprocessing first!! Exiting the program.")
 combined_data_excel_file = EXCEL_FOLDER  + os.sep + "combined_data.xlsx"
 xdf_data = pd.read_excel(combined_data_excel_file)
-xdf_dset = xdf_data[xdf_data["split"] == 'Train'].copy()
-xdf_dset_test = xdf_data[xdf_data["split"] == 'Val'].copy()
+xdf_dset = xdf_data[xdf_data["split"] == 'train'].copy().head(10)
+xdf_dset_test = xdf_data[xdf_data["split"] == 'val'].copy().head(10)
 
 processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
 model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
@@ -53,13 +53,13 @@ class CustomDataset(data.Dataset):
         if self.type_data == 'train':
             question = xdf_dset.question.get(ID)
             answer = xdf_dset.answer.get(ID)
-            image_path = xdf_dset.image_name.get(ID)
+            image_path = xdf_dset.image_path.get(ID)
             #y = [xdf_dset.target.get(ID)]
             #file = xdf_dset.destination_path.get(ID)
         elif self.type_data == 'test':
             question = xdf_dset_test.question.get(ID)
             answer = xdf_dset_test.answer.get(ID)
-            image_path = xdf_dset_test.image_name.get(ID)
+            image_path = xdf_dset_test.image_path.get(ID)
         # elif self.type_data == 'dev':
         #     pass
             # y = [xdf_dset_dev.target.get(ID)]
