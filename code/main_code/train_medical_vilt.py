@@ -5,8 +5,9 @@ from torch.utils import data
 import torch
 from PIL import Image
 from tqdm import tqdm
-from transformers import BlipProcessor, BlipForQuestionAnswering
+from transformers import ViltProcessor, ViltForQuestionAnswering, ViltConfig
 import pickle
+import cv2
 
 CUR_DIR = os.getcwd()
 CODE_DIR = os.path.dirname(CUR_DIR)
@@ -17,10 +18,11 @@ if not os.path.exists(EXCEL_FOLDER):
     raise FileNotFoundError(f"The folder {EXCEL_FOLDER} does not exist. Load data and run preprocessing first!! Exiting the program.")
 combined_data_excel_file = EXCEL_FOLDER  + os.sep + "combined_data.xlsx"
 xdf_data = pd.read_excel(combined_data_excel_file)
-xdf_dset = xdf_data[xdf_data["split"] == 'train'].copy().head(200)
-xdf_dset_test = xdf_data[xdf_data["split"] == 'val'].copy().head(100)
+xdf_dset = xdf_data[xdf_data["split"] == 'train'].copy()#.head(200)
+xdf_dset_test = xdf_data[xdf_data["split"] == 'val'].copy()#.head(100)
 
-processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
+processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-finetuned-vqa")
+config = ViltConfig.from_pretrained("dandelin/vilt-b32-finetuned-vqa")
 
 is_cuda = torch.cuda.is_available()
 if is_cuda:
@@ -34,7 +36,7 @@ class CustomDataset(data.Dataset):
     '''
     From : https://stanford.edu/~shervine/blog/pytorch-how-to-generate-data-parallel
     '''
-    def __init__(self, list_IDs, type_data):
+    def __init__(self, list_IDs, type_data, processor):
         self.type_data = type_data
         self.list_IDs = list_IDs
         self.processor = processor
@@ -57,13 +59,16 @@ class CustomDataset(data.Dataset):
             answer = xdf_dset_test.answer.get(ID)
             image_path = xdf_dset_test.image_path.get(ID)
 
-        image = Image.open(image_path).convert('RGB')
+        #image = Image.open(image_path).convert('RGB')
+        image = cv2.imread(image_path)
+        image = cv2.resize(image,(384,384))
         encoding = self.processor(image, question, padding="max_length", truncation=True, return_tensors="pt")
         labels = self.processor.tokenizer.encode(
-            answer, max_length=8, pad_to_max_length=True, return_tensors='pt'
+            answer, max_length = 3129, pad_to_max_length=True, return_tensors='pt'
         )
         encoding["labels"] = labels
-        for k,v in encoding.items():  encoding[k] = v.squeeze()
+        for k,v in encoding.items():
+            encoding[k] = v.squeeze()
         return encoding
 
 class CustomDataLoader:
@@ -78,17 +83,17 @@ class CustomDataLoader:
             'test': list_of_ids_test
         }
         params = {'batch_size': self.BATCH_SIZE, 'shuffle': True}
-        training_set = CustomDataset(partition['train'], 'train')
+        training_set = CustomDataset(partition['train'], 'train',processor)
         training_generator = data.DataLoader(training_set, **params)
         params = {'batch_size': self.BATCH_SIZE, 'shuffle': False}
-        test_set = CustomDataset(partition['test'], 'test')
+        test_set = CustomDataset(partition['test'], 'test',processor)
         test_generator = data.DataLoader(test_set, **params)
         return training_generator, test_generator#, dev_generator
 
 
 def model_definition(config):
     #model = model
-    model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
+    model = ViltForQuestionAnswering.from_pretrained("dandelin/vilt-b32-finetuned-vqa")
     model = model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=4e-5)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9, last_epoch=-1, verbose=False)
@@ -166,8 +171,8 @@ def train_test(train_gen, val_gen ,config):
                                                                               optimizer.param_groups[0]["lr"]))
         scheduler.step()
         if eval_loss < min_eval_loss:
-            model.save_pretrained("Model/blip-saved-model", from_pt=True)
-            print("Saved model to Model/blip-saved-model")
+            model.save_pretrained("Model/vilt-saved-model", from_pt=True)
+            print("Saved model to Model/vilt-saved-model")
             min_eval_loss = eval_loss
             early_stopping_hook = 0
         else:
