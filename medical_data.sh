@@ -19,3 +19,4 @@ mv VQAMed2019Test test
 cd test
 unzip '*.zip'
 rm *.zip
+pip install ruamel_yaml

@@ -7,6 +7,20 @@ from ruamel.yaml import YAML
 import torch
 from tqdm import tqdm
 from datetime import datetime
+import nltk
+from nltk.translate.bleu_score import sentence_bleu, corpus_bleu
+from nltk.translate.bleu_score import SmoothingFunction
+from nltk.translate.meteor_score import meteor_score
+#from nltk.translate.rouge_score import rouge_n, rouge_l
+#from rouge import Rouge
+#from rouge import Rouge
+from rouge_score import rouge_scorer
+from nltk.tokenize import word_tokenize
+from sklearn.metrics import jaccard_score
+import nltk
+nltk.download('punkt')
+nltk.download('wordnet')
+
 
 CUR_DIR = os.getcwd()
 CODE_DIR = os.path.dirname(CUR_DIR)
@@ -21,7 +35,7 @@ if not os.path.exists(generated_result_folder):
     os.mkdir(generated_result_folder)
 generated_result_excel_file = f"{generated_result_folder}{os.sep}test_data_{current_time}.xlsx"
 #generated_result_excel_file = EXCEL_FOLDER  + os.sep + "test_data.xlsx"
-xdf_dset_test = pd.read_excel(test_data_excel_file)
+xdf_dset_test = pd.read_excel(test_data_excel_file)#.head(10)
 
 is_cuda = torch.cuda.is_available()
 if is_cuda:
@@ -63,11 +77,12 @@ class CustomDataset(data.Dataset):
         return encoding,image_path,question,answer
         #return image_path, encoding, answer
         #return encoding
+
 class CustomDataLoader:
-    def __init__(self,config,processor,model):
+    def __init__(self,config,processor):
         self.BATCH_SIZE = config['BATCH_SIZE']
         self.processor = processor
-        self.model = model
+        # self.model = model
     def read_data(self):
         list_of_ids_test = list(xdf_dset_test.index)
         partition = {
@@ -77,21 +92,105 @@ class CustomDataLoader:
         test_set = CustomDataset(partition['test'], self.processor )
         test_generator = data.DataLoader(test_set, **params)
         return test_generator
+def metrics_func(metrics, aggregates, y_true, y_pred):
+    '''
+    multiple functiosn of metrics to call each function
+    bleu, rouge, jaccard, exact match, f1 score, meteo
+    list of metrics: bleu, rouge, jaccard, exact match, f1 score, meteo
+    list of aggregates : avg, sum
+    :return:
+    '''
 
-if __name__ == '__main__':
-    processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
+    def bleu_score(y_true, y_pred):
+        smooth = SmoothingFunction().method1
+        return corpus_bleu(y_true, y_pred, smoothing_function=smooth)
+
+    def rouge_score(y_true, y_pred):
+        rougeL_scores = []
+        scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'], use_stemmer=True)
+        for y_pred, y_true in zip(y_pred, y_true):
+            scores = scorer.score(y_pred, y_true)
+            rougeL_scores.append(scores['rougeL'].fmeasure)
+        avg_rougeL = sum(rougeL_scores) / len(rougeL_scores)
+
+        return  avg_rougeL
+    def compute_meteor_score(y_true_list, y_pred_list):
+        scores = []
+        for y_true, y_pred in zip(y_true_list, y_pred_list):
+            tokens_true = word_tokenize(y_true)
+            tokens_pred = word_tokenize(y_pred)
+            score = meteor_score([tokens_true], tokens_pred)
+            scores.append(score)
+        avg_score = sum(scores) / len(scores)
+        return avg_score
+    def jaccard_similarity(y_true, y_pred):
+        intersection = len(set(y_true) & set(y_pred))
+        union = len(set(y_true) | set(y_pred))
+        return intersection / union if union else 0.0
+    def exact_match(y_true, y_pred):
+        num_exact_matches = sum(1 for true, pred in zip(y_true, y_pred) if true == pred)
+        return num_exact_matches / len(y_true)
+    def f1_score(y_true, y_pred):
+        reference_tokens = set(y_true.split())
+        hypothesis_tokens = set(y_pred.split())
+        if len(hypothesis_tokens) == 0:
+            return 0.0
+        precision = len(reference_tokens.intersection(hypothesis_tokens)) / len(hypothesis_tokens)
+        recall = len(reference_tokens.intersection(hypothesis_tokens)) / len(reference_tokens)
+        f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+        return f1
+
+    def calculate_f1_scores(y_true_list, y_pred_list):
+        f1_scores = []
+        for y_true, y_pred in zip(y_true_list, y_pred_list):
+            f1 = f1_score(y_true, y_pred)
+            f1_scores.append(f1)
+        average_f1_score = sum(f1_scores) / len(f1_scores)
+        return average_f1_score
+
+    xcont = 1
+    xsum = 0
+    res_dict = {}
+    for xm in metrics:
+        if xm == 'bleu':
+            # f1 score average = micro
+            xmet = bleu_score(y_true, y_pred)
+        elif xm == 'rouge':
+            # f1 score average = macro
+            xmet = rouge_score(y_true, y_pred)
+        elif xm == 'meteor':
+            # f1 score average =
+            xmet = compute_meteor_score(y_true, y_pred)
+        elif xm == 'jac':
+             # Cohen kappa
+            xmet = jaccard_similarity(y_true, y_pred)
+        elif xm == 'em':
+            # Accuracy
+            xmet = exact_match(y_true, y_pred)
+        elif xm == 'f1':
+            # Matthews
+            xmet = calculate_f1_scores(y_true, y_pred)
+        else:
+            xmet = 0
+
+        res_dict[xm] = xmet
+
+        xsum = xsum + xmet
+        xcont = xcont +1
+
+    if 'sum' in aggregates:
+        res_dict['sum'] = xsum
+    if 'avg' in aggregates and xcont > 0:
+        res_dict['avg'] = xsum/xcont
+    # Ask for arguments for each metric
+
+    return res_dict
+def model_definition():
     model = BlipForQuestionAnswering.from_pretrained("Model/blip-saved-model").to("cuda")
-
-    yaml = YAML(typ='rt')
-    config_file = os.path.join(CONFIG_FOLDER + os.sep + "medical_data_preprocess.yml" )
-
-    with open(os.path.join(config_file), 'r') as file:
-        config = yaml.load(file)
-    test_loader = CustomDataLoader(config,processor,model)
-    test_gen = test_loader.read_data()
-    #data_new = []
-    # predicted_answer = []
-    # target_answer = []
+    model.to(device)
+    return model
+def eval_model(test_gen,processor, list_of_metrics, list_of_agg):
+    model = model_definition()
     data_list = []
     for idx, batch in zip(tqdm(range(len(test_gen)), desc='Test batch: ...'), test_gen):
         input_ids = batch[0].pop('input_ids').to(device)
@@ -101,9 +200,6 @@ if __name__ == '__main__':
         questions = batch[2]
         answers = batch[3]
         out = model.generate(input_ids=input_ids, pixel_values=pixel_values, attention_mask=attention_masked)
-
-        #generated_texts_batch = []
-        # Iterate over each element in the batch
 
         for i in range(out.size(0)):
             single_element = []
@@ -115,5 +211,29 @@ if __name__ == '__main__':
             single_element.append(generated_text)
             data_list.append(single_element)
     df = pd.DataFrame(data_list, columns=['image_path', 'question', 'target_answer', 'predicted_answer'])
-    df.to_excel(generated_result_excel_file, index=False)
-    #print(df)
+    #df.to_excel(generated_result_excel_file, index=False)
+    print(f"saved to excel")
+
+
+    test_metrics = metrics_func(list_of_metrics, list_of_agg, df['target_answer'].values, df['predicted_answer'].values)
+    xstrres = ""
+    for met, dat in test_metrics.items():
+        xstrres = xstrres + ' Test ' + met + ' {:.5f}'.format(dat)
+    print(xstrres)
+
+
+
+if __name__ == '__main__':
+
+    yaml = YAML(typ='rt')
+    config_file = os.path.join(CONFIG_FOLDER + os.sep + "medical_data_preprocess.yml" )
+    processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
+
+    with open(os.path.join(config_file), 'r') as file:
+        config = yaml.load(file)
+    test_loader = CustomDataLoader(config,processor)
+    test_gen = test_loader.read_data()
+
+    list_of_metrics = ['bleu', 'rouge', 'jac','em','f1','meteor']
+    list_of_agg = ['avg', 'sum']
+    eval_model(test_gen, processor, list_of_metrics, list_of_agg)
