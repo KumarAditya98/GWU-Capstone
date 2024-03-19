@@ -21,7 +21,8 @@ xdf_data = pd.read_excel(combined_data_excel_file)
 xdf_dset = xdf_data[xdf_data["split"] == 'train'].copy()#.head(200)
 xdf_dset_test = xdf_data[xdf_data["split"] == 'val'].copy()#.head(100)
 
-processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-finetuned-vqa")
+#processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-finetuned-vqa")
+processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-mlm")
 config = ViltConfig.from_pretrained("dandelin/vilt-b32-finetuned-vqa")
 
 is_cuda = torch.cuda.is_available()
@@ -59,18 +60,54 @@ class CustomDataset(data.Dataset):
             answer = xdf_dset_test.answer.get(ID)
             image_path = xdf_dset_test.image_path.get(ID)
 
+        # image = Image.open(image_path).convert('RGB')
+        # #image = image.resize((250, 250), Image.ANTIALIAS)
+        # #image = cv2.imread(image_path)
+        # #image = cv2.resize(image,(384,384))
+        # #encoding = self.processor(image, question, padding="max_length", truncation=True, return_tensors="pt")
+        # encoding = self.processor(image, question, padding="max_length", truncation=True, return_tensors="pt")
+        # # labels = self.processor.tokenizer.encode(
+        # #     answer, max_length = 3129, pad_to_max_length=True, return_tensors='pt'
+        # # )
         #image = Image.open(image_path).convert('RGB')
-        image = cv2.imread(image_path)
-        image = cv2.resize(image,(384,384))
+        image = Image.open(image_path)
         encoding = self.processor(image, question, padding="max_length", truncation=True, return_tensors="pt")
-        labels = self.processor.tokenizer.encode(
-            answer, max_length = 3129, pad_to_max_length=True, return_tensors='pt'
-        )
-        encoding["labels"] = labels
         for k,v in encoding.items():
-            encoding[k] = v.squeeze()
+          encoding[k] = v.squeeze()
+        targets = torch.zeros(len(config.id2label))
+        label = config.label2id[answer]
+        #targets = torch.zeros(len(config.id2label))
+        # for label, score in zip(labels, scores):
+        #       targets[label] = score
+        # encoding["labels"] = targets
+        #for label, score in zip(labels, scores):
+        targets[label] = 1
+        encoding["labels"] = targets
+        # for k,v in encoding.items():
+        #     encoding[k] = v.squeeze()
         return encoding
 
+
+def collate_fn(batch):
+  input_ids = [item['input_ids'] for item in batch]
+  pixel_values = [item['pixel_values'] for item in batch]
+  attention_mask = [item['attention_mask'] for item in batch]
+  token_type_ids = [item['token_type_ids'] for item in batch]
+  labels = [item['labels'] for item in batch]
+
+  # create padded pixel values and corresponding pixel mask
+  encoding = processor.image_processor.pad(pixel_values, return_tensors="pt")
+
+  # create new batch
+  batch = {}
+  batch['input_ids'] = torch.stack(input_ids)
+  batch['attention_mask'] = torch.stack(attention_mask)
+  batch['token_type_ids'] = torch.stack(token_type_ids)
+  batch['pixel_values'] = encoding['pixel_values']
+  batch['pixel_mask'] = encoding['pixel_mask']
+  batch['labels'] = torch.stack(labels)
+
+  return batch
 class CustomDataLoader:
     def __init__(self,config):
         self.BATCH_SIZE = config['BATCH_SIZE']
@@ -84,16 +121,19 @@ class CustomDataLoader:
         }
         params = {'batch_size': self.BATCH_SIZE, 'shuffle': True}
         training_set = CustomDataset(partition['train'], 'train',processor)
-        training_generator = data.DataLoader(training_set, **params)
+        training_generator = data.DataLoader(training_set, **params,collate_fn=collate_fn)
         params = {'batch_size': self.BATCH_SIZE, 'shuffle': False}
         test_set = CustomDataset(partition['test'], 'test',processor)
-        test_generator = data.DataLoader(test_set, **params)
+        test_generator = data.DataLoader(test_set, **params,collate_fn=collate_fn)
         return training_generator, test_generator#, dev_generator
 
 
-def model_definition(config):
+def model_definition(config_yml):
     #model = model
-    model = ViltForQuestionAnswering.from_pretrained("dandelin/vilt-b32-finetuned-vqa")
+#    model = ViltForQuestionAnswering.from_pretrained("dandelin/vilt-b32-finetuned-vqa")
+    model = ViltForQuestionAnswering.from_pretrained("dandelin/vilt-b32-mlm",
+                                                     id2label=config.id2label,
+                                                     label2id=config.label2id)
     model = model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=4e-5)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9, last_epoch=-1, verbose=False)
@@ -101,14 +141,13 @@ def model_definition(config):
     return model, optimizer, scheduler, scaler
 
 
-#%%
 
-def train_test(train_gen, val_gen ,config):
-    patience = config['patience']
-    num_epochs = config["EPOCH"]
+def train_test(train_gen, val_gen ,config_yml):
+    patience = config_yml['patience']
+    num_epochs = config_yml["EPOCH"]
     min_eval_loss = float("inf")
     tracking_information = []
-    model, optimizer, scheduler, scaler = model_definition(config)
+    model, optimizer, scheduler, scaler = model_definition(config_yml)
 
     for epoch in range(num_epochs):
         # --Start Model Training--
@@ -180,17 +219,28 @@ def train_test(train_gen, val_gen ,config):
             if early_stopping_hook > patience:
                 break
 
+
+def set_label_ids():
+    ViltConfig_config_filename = CONFIG_FOLDER + os.sep + 'ViltConfig.pkl'
+    unique_labels = set(xdf_dset['answer'].values)
+    label2id = {label: idx for idx, label in enumerate(unique_labels)}
+    id2label = {idx: label for label, idx in label2id.items()}
+    config.id2label = id2label
+    config.label2id = label2id
+    with open(ViltConfig_config_filename , 'wb') as f:
+        pickle.dump(config, f)
+
 if __name__ == '__main__':
     yaml = YAML(typ='rt')
     config_file = os.path.join(CONFIG_FOLDER + os.sep + "medical_data_preprocess.yml" )
 
     with open(os.path.join(config_file), 'r') as file:
-        config = yaml.load(file)
-
-    data_loader = CustomDataLoader(config)
+        config_yml = yaml.load(file)
+    set_label_ids()
+    data_loader = CustomDataLoader(config_yml)
     train_gen, val_gen = data_loader.read_data()
 
-    train_test(train_gen, val_gen,  config)
+    train_test(train_gen, val_gen,  config_yml)
     """
     Reference :  https://github.com/dino-chiio/blip-vqa-finetune/tree/main
     """
