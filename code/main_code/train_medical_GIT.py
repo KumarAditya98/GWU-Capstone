@@ -7,7 +7,11 @@ from PIL import Image
 from tqdm import tqdm
 from transformers import BlipProcessor, BlipForQuestionAnswering
 import pickle
-from transformers import AutoProcessor, AutoModelForVisualQuestionAnswering
+from transformers import AutoProcessor, AutoModelForVisualQuestionAnswering, AutoModelForCausalLM
+from transformers import Blip2Processor
+
+
+
 
 CUR_DIR = os.getcwd()
 CODE_DIR = os.path.dirname(CUR_DIR)
@@ -18,10 +22,11 @@ if not os.path.exists(EXCEL_FOLDER):
     raise FileNotFoundError(f"The folder {EXCEL_FOLDER} does not exist. Load data and run preprocessing first!! Exiting the program.")
 combined_data_excel_file = EXCEL_FOLDER  + os.sep + "combined_data.xlsx"
 xdf_data = pd.read_excel(combined_data_excel_file)
-xdf_dset = xdf_data[xdf_data["split"] == 'train'].copy()#.head(200)
-xdf_dset_test = xdf_data[xdf_data["split"] == 'val'].copy()#.head(100)
+xdf_dset = xdf_data[xdf_data["split"] == 'train']
+xdf_dset_test = xdf_data[xdf_data["split"] == 'val']
 
-processor = AutoProcessor.from_pretrained("Salesforce/blip2-opt-2.7b")
+# processor = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
+processor = AutoProcessor.from_pretrained("microsoft/git-base-vqav2")
 
 is_cuda = torch.cuda.is_available()
 if is_cuda:
@@ -59,13 +64,88 @@ class CustomDataset(data.Dataset):
             image_path = xdf_dset_test.image_path.get(ID)
 
         image = Image.open(image_path).convert('RGB')
-        encoding = self.processor(image, question, padding="max_length", truncation=True, return_tensors="pt")
+        # encoding = self.processor(image, question, padding=True, truncation=True, return_tensors="pt")
+        encoding = self.processor(question, image, padding=True, truncation=True, return_tensors="pt")
         labels = self.processor.tokenizer.encode(
-            answer, max_length=8, pad_to_max_length=True, return_tensors='pt'
+            answer, max_length=encoding.input_ids.shape[1], pad_to_max_length=True, return_tensors='pt'
         )
+
         encoding["labels"] = labels
         for k,v in encoding.items():  encoding[k] = v.squeeze()
         return encoding
+
+# rom torch.utils.data import DataLoader
+#
+def collate_fn(batch):
+  input_ids = [item['input_ids'] for item in batch]
+  pixel_values = [item['pixel_values'] for item in batch]
+  attention_mask = [item['attention_mask'] for item in batch]
+  labels = [item['labels'] for item in batch]
+  input_ids_lists = [ids.tolist() for ids in input_ids]
+  pixel_values_lists = [px.tolist() for px in pixel_values]
+  max_length = max(len(ids) for ids in input_ids_lists)
+
+  # Pad input_ids and attention_mask to the same length
+  padded_input_ids = [ids + [0] * (max_length - len(ids)) for ids in input_ids_lists]
+  padded_attention_mask = [[1] * len(ids) + [0] * (max_length - len(ids)) for ids in attention_mask]
+
+  # Convert padded_input_ids and padded_attention_mask back to tensors
+  padded_input_ids = torch.tensor(padded_input_ids)
+  padded_attention_mask = torch.tensor(padded_attention_mask)
+
+  # Stack the padded tensors
+  batch = {}
+  batch['input_ids'] = padded_input_ids
+  batch['attention_mask'] = padded_attention_mask
+  batch['pixel_values'] = torch.tensor(pixel_values_lists)
+  batch['labels'] = torch.stack(labels)
+
+  return batch
+
+# def collate_fn(batch):
+#     # Extract input_ids and attention_mask tensors from batch
+#     input_ids = [item['input_ids'] for item in batch]
+#     attention_mask = [item['attention_mask'] for item in batch]
+#
+#     # Determine the maximum length of input_ids
+#     max_length = max(ids.size(1) for ids in input_ids)
+#
+#     # Pad input_ids and attention_mask to the same length
+#     padded_input_ids = torch.stack([torch.cat([ids, torch.zeros((1, max_length - ids.size(1)), dtype=torch.long)]) for ids in input_ids])
+#     padded_attention_mask = torch.stack([torch.cat([mask, torch.zeros((1, max_length - mask.size(1)), dtype=torch.long)]) for mask in attention_mask])
+#
+#     # Extract pixel_values and labels tensors from batch
+#     pixel_values = torch.stack([item['pixel_values'] for item in batch])
+#     labels = torch.stack([item['labels'] for item in batch])
+#
+#     # Return the processed batch
+#     return {
+#         'input_ids': padded_input_ids,
+#         'attention_mask': padded_attention_mask,
+#         'pixel_values': pixel_values,
+#         'labels': labels
+#     }
+
+# def collate_fn(batch):
+#     # pad the input_ids and attention_mask
+#     processed_batch = {}
+#     for key in batch[0].keys():
+#         if key in ["pixel_values",'input_ids']:
+#             processed_batch[key] = torch.stack([example[key] for example in batch])
+#         #     processed_batch["input_ids"] = text_inputs["input_ids"]
+#         #     processed_batch["attention_mask"] = text_inputs["attention_mask"]
+#         # elif key == 'question':
+#         #     text_inputs = processor.tokenizer(
+#         #         [example["question"] for example in batch], padding=True, return_tensors="pt"
+#         #     )
+#         #
+#         # elif key == 'labels':
+#         #     # No need to stack labels here, already stacked during encoding
+#         #     processed_batch[key] = torch.stack([example[key] for example in batch])
+#     # processed_batch["input_ids"] = text_inputs["input_ids"]
+#     # processed_batch["attention_mask"] = text_inputs["attention_mask"]
+#     return processed_batch
+
 
 class CustomDataLoader:
     def __init__(self,config):
@@ -80,7 +160,7 @@ class CustomDataLoader:
         }
         params = {'batch_size': self.BATCH_SIZE, 'shuffle': True}
         training_set = CustomDataset(partition['train'], 'train')
-        training_generator = data.DataLoader(training_set, **params)
+        training_generator = data.DataLoader(training_set, **params, collate_fn = collate_fn)
         params = {'batch_size': self.BATCH_SIZE, 'shuffle': False}
         test_set = CustomDataset(partition['test'], 'test')
         test_generator = data.DataLoader(test_set, **params)
@@ -89,7 +169,12 @@ class CustomDataLoader:
 
 def model_definition(config):
     #model = model
-    model = AutoModelForVisualQuestionAnswering.from_pretrained("Salesforce/blip2-opt-2.7b")
+    # model = AutoModelForVisualQuestionAnswering.from_pretrained("Salesforce/blip2-opt-2.7b")
+    # model = AutoModelForVisualQuestionAnswering.from_pretrained(
+    #     "Salesforce/blip2-opt-2.7b", load_in_8bit=True, device_map={"": 0}, torch_dtype=torch.float16
+    # )
+    model = AutoModelForCausalLM.from_pretrained("microsoft/git-base-vqav2")
+
     model = model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=4e-5)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9, last_epoch=-1, verbose=False)
@@ -119,6 +204,7 @@ def train_test(train_gen, val_gen ,config):
                                 pixel_values=pixel_values,
                                 attention_mask=attention_masked,
                                 labels=labels)
+
                 loss = outputs.loss
                 epoch_loss += loss.item()
                 optimizer.zero_grad()
@@ -164,8 +250,8 @@ def train_test(train_gen, val_gen ,config):
                                                                               optimizer.param_groups[0]["lr"]))
         scheduler.step()
         if eval_loss < min_eval_loss:
-            model.save_pretrained("Model/blip2-saved-model", from_pt=True)
-            print("Saved model to Model/blip2-saved-model")
+            model.save_pretrained("Model/git-saved-model", from_pt=True)
+            print("Saved model to Model/git-saved-model")
             min_eval_loss = eval_loss
             early_stopping_hook = 0
         else:
