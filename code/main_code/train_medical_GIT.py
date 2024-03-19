@@ -7,7 +7,7 @@ from PIL import Image
 from tqdm import tqdm
 from transformers import BlipProcessor, BlipForQuestionAnswering
 import pickle
-from transformers import AutoProcessor, AutoModelForVisualQuestionAnswering, AutoModelForCausalLM
+from transformers import AutoProcessor, AutoModelForCausalLM
 from transformers import Blip2Processor
 
 
@@ -25,7 +25,6 @@ xdf_data = pd.read_excel(combined_data_excel_file)
 xdf_dset = xdf_data[xdf_data["split"] == 'train']
 xdf_dset_test = xdf_data[xdf_data["split"] == 'val']
 
-# processor = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
 processor = AutoProcessor.from_pretrained("microsoft/git-base-vqav2")
 
 is_cuda = torch.cuda.is_available()
@@ -64,7 +63,6 @@ class CustomDataset(data.Dataset):
             image_path = xdf_dset_test.image_path.get(ID)
 
         image = Image.open(image_path).convert('RGB')
-        # encoding = self.processor(image, question, padding=True, truncation=True, return_tensors="pt")
         encoding = self.processor(question, image, padding=True, truncation=True, return_tensors="pt")
         labels = self.processor.tokenizer.encode(
             answer, max_length=encoding.input_ids.shape[1], pad_to_max_length=True, return_tensors='pt'
@@ -167,12 +165,7 @@ class CustomDataLoader:
         return training_generator, test_generator#, dev_generator
 
 
-def model_definition(config):
-    #model = model
-    # model = AutoModelForVisualQuestionAnswering.from_pretrained("Salesforce/blip2-opt-2.7b")
-    # model = AutoModelForVisualQuestionAnswering.from_pretrained(
-    #     "Salesforce/blip2-opt-2.7b", load_in_8bit=True, device_map={"": 0}, torch_dtype=torch.float16
-    # )
+def model_definition():
     model = AutoModelForCausalLM.from_pretrained("microsoft/git-base-vqav2")
 
     model = model.to(device)
@@ -186,7 +179,7 @@ def train_test(train_gen, val_gen ,config):
     num_epochs = config["EPOCH"]
     min_eval_loss = float("inf")
     tracking_information = []
-    model, optimizer, scheduler, scaler = model_definition(config)
+    model, optimizer, scheduler, scaler = model_definition()
 
     for epoch in range(num_epochs):
         # --Start Model Training--
