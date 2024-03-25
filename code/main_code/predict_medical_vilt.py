@@ -1,12 +1,25 @@
 import pandas as pd
 import os
 from torch.utils import data
-from transformers import ViltProcessor, ViltForQuestionAnswering
+from transformers import ViltProcessor, ViltForQuestionAnswering, ViltConfig
 from PIL import Image
 from ruamel.yaml import YAML
 import torch
 from tqdm import tqdm
 from datetime import datetime
+import nltk
+from nltk.translate.bleu_score import sentence_bleu, corpus_bleu
+from nltk.translate.bleu_score import SmoothingFunction
+from nltk.translate.meteor_score import meteor_score
+#from nltk.translate.rouge_score import rouge_n, rouge_l
+#from rouge import Rouge
+#from rouge import Rouge
+from rouge_score import rouge_scorer
+from nltk.tokenize import word_tokenize
+from sklearn.metrics import jaccard_score
+import nltk
+nltk.download('punkt')
+nltk.download('wordnet')
 
 CUR_DIR = os.getcwd()
 CODE_DIR = os.path.dirname(CUR_DIR)
@@ -63,11 +76,32 @@ class CustomDataset(data.Dataset):
         return encoding,image_path,question,answer
         #return image_path, encoding, answer
         #return encoding
+
+def collate_fn(batch):
+    input_ids = [item['input_ids'] for item in batch]
+    pixel_values = [item['pixel_values'] for item in batch]
+    attention_mask = [item['attention_mask'] for item in batch]
+    token_type_ids = [item['token_type_ids'] for item in batch]
+    labels = [item['labels'] for item in batch]
+
+    # create padded pixel values and corresponding pixel mask
+    encoding = processor.image_processor.pad(pixel_values, return_tensors="pt")
+
+    # create new batch
+    batch = {}
+    batch['input_ids'] = torch.stack(input_ids)
+    batch['attention_mask'] = torch.stack(attention_mask)
+    batch['token_type_ids'] = torch.stack(token_type_ids)
+    batch['pixel_values'] = encoding['pixel_values']
+    batch['pixel_mask'] = encoding['pixel_mask']
+    batch['labels'] = torch.stack(labels)
+
+    return batch
 class CustomDataLoader:
     def __init__(self,config,processor,model):
         self.BATCH_SIZE = config['BATCH_SIZE']
         self.processor = processor
-        self.model = model
+        #self.model = model
     def read_data(self):
         list_of_ids_test = list(xdf_dset_test.index)
         partition = {
@@ -75,8 +109,139 @@ class CustomDataLoader:
         }
         params = {'batch_size': self.BATCH_SIZE, 'shuffle': False}
         test_set = CustomDataset(partition['test'], self.processor )
-        test_generator = data.DataLoader(test_set, **params)
+        test_generator = data.DataLoader(test_set, collate_fn = collate_fn, **params)
         return test_generator
+
+def metrics_func(metrics, aggregates, y_true, y_pred):
+    '''
+    multiple functiosn of metrics to call each function
+    bleu, rouge, jaccard, exact match, f1 score, meteo
+    list of metrics: bleu, rouge, jaccard, exact match, f1 score, meteo
+    list of aggregates : avg, sum
+    :return:
+    '''
+
+    def bleu_score(y_true, y_pred):
+        smooth = SmoothingFunction().method1
+        return corpus_bleu(y_true, y_pred, smoothing_function=smooth)
+
+    def rouge_score(y_true, y_pred):
+        rougeL_scores = []
+        scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'], use_stemmer=True)
+        for y_pred, y_true in zip(y_pred, y_true):
+            scores = scorer.score(y_pred, y_true)
+            rougeL_scores.append(scores['rougeL'].fmeasure)
+        avg_rougeL = sum(rougeL_scores) / len(rougeL_scores)
+
+        return  avg_rougeL
+    def compute_meteor_score(y_true_list, y_pred_list):
+        scores = []
+        for y_true, y_pred in zip(y_true_list, y_pred_list):
+            tokens_true = word_tokenize(y_true)
+            tokens_pred = word_tokenize(y_pred)
+            score = meteor_score([tokens_true], tokens_pred)
+            scores.append(score)
+        avg_score = sum(scores) / len(scores)
+        return avg_score
+    def jaccard_similarity(y_true, y_pred):
+        intersection = len(set(y_true) & set(y_pred))
+        union = len(set(y_true) | set(y_pred))
+        return intersection / union if union else 0.0
+    def exact_match(y_true, y_pred):
+        num_exact_matches = sum(1 for true, pred in zip(y_true, y_pred) if true == pred)
+        return num_exact_matches / len(y_true)
+    def f1_score(y_true, y_pred):
+        reference_tokens = set(y_true.split())
+        hypothesis_tokens = set(y_pred.split())
+        if len(hypothesis_tokens) == 0:
+            return 0.0
+        precision = len(reference_tokens.intersection(hypothesis_tokens)) / len(hypothesis_tokens)
+        recall = len(reference_tokens.intersection(hypothesis_tokens)) / len(reference_tokens)
+        f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+        return f1
+
+    def calculate_f1_scores(y_true_list, y_pred_list):
+        f1_scores = []
+        for y_true, y_pred in zip(y_true_list, y_pred_list):
+            f1 = f1_score(y_true, y_pred)
+            f1_scores.append(f1)
+        average_f1_score = sum(f1_scores) / len(f1_scores)
+        return average_f1_score
+
+    xcont = 1
+    xsum = 0
+    res_dict = {}
+    for xm in metrics:
+        if xm == 'bleu':
+            # f1 score average = micro
+            xmet = bleu_score(y_true, y_pred)
+        elif xm == 'rouge':
+            # f1 score average = macro
+            xmet = rouge_score(y_true, y_pred)
+        elif xm == 'meteor':
+            # f1 score average =
+            xmet = compute_meteor_score(y_true, y_pred)
+        elif xm == 'jac':
+             # Cohen kappa
+            xmet = jaccard_similarity(y_true, y_pred)
+        elif xm == 'em':
+            # Accuracy
+            xmet = exact_match(y_true, y_pred)
+        elif xm == 'f1':
+            # Matthews
+            xmet = calculate_f1_scores(y_true, y_pred)
+        else:
+            xmet = 0
+
+        res_dict[xm] = xmet
+
+        xsum = xsum + xmet
+        xcont = xcont +1
+
+    if 'sum' in aggregates:
+        res_dict['sum'] = xsum
+    if 'avg' in aggregates and xcont > 0:
+        res_dict['avg'] = xsum/xcont
+    # Ask for arguments for each metric
+
+    return res_dict
+
+def model_definition():
+    model = ViltForQuestionAnswering.from_pretrained("Model/vilt-saved-model").to("cuda")
+    model.to(device)
+    return model
+
+def eval_model(test_gen,processor, list_of_metrics, list_of_agg):
+    model = model_definition()
+    data_list = []
+    for idx, batch in zip(tqdm(range(len(test_gen)), desc='Test batch: ...'), test_gen):
+        input_ids = batch[0].pop('input_ids').to(device)
+        pixel_values = batch[0].pop('pixel_values').to(device)
+        attention_masked = batch[0].pop('attention_mask').to(device)
+        image_paths = batch[1]
+        questions = batch[2]
+        answers = batch[3]
+        out = model.generate(input_ids=input_ids, pixel_values=pixel_values, attention_mask=attention_masked)
+
+        for i in range(out.size(0)):
+            single_element = []
+            token_ids = out[i]
+            generated_text = processor.decode(token_ids, skip_special_tokens=True)
+            single_element.append(image_paths[i])
+            single_element.append(questions[i])
+            single_element.append(answers[i])
+            single_element.append(generated_text)
+            data_list.append(single_element)
+    df = pd.DataFrame(data_list, columns=['image_path', 'question', 'target_answer', 'predicted_answer'])
+    #df.to_excel(generated_result_excel_file, index=False)
+    print(f"saved to excel")
+
+
+    test_metrics = metrics_func(list_of_metrics, list_of_agg, df['target_answer'].values, df['predicted_answer'].values)
+    xstrres = ""
+    for met, dat in test_metrics.items():
+        xstrres = xstrres + ' Test ' + met + ' {:.5f}'.format(dat)
+    print(xstrres)
 
 if __name__ == '__main__':
     processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-finetuned-vqa")
@@ -92,28 +257,7 @@ if __name__ == '__main__':
     #data_new = []
     # predicted_answer = []
     # target_answer = []
-    data_list = []
-    for idx, batch in zip(tqdm(range(len(test_gen)), desc='Test batch: ...'), test_gen):
-        input_ids = batch[0].pop('input_ids').to(device)
-        pixel_values = batch[0].pop('pixel_values').to(device)
-        attention_masked = batch[0].pop('attention_mask').to(device)
-        image_paths = batch[1]
-        questions = batch[2]
-        answers = batch[3]
-        out = model.generate(input_ids=input_ids, pixel_values=pixel_values, attention_mask=attention_masked)
 
-        #generated_texts_batch = []
-        # Iterate over each element in the batch
-
-        for i in range(out.size(0)):
-            single_element = []
-            token_ids = out[i]
-            generated_text = processor.decode(token_ids, skip_special_tokens=True)
-            single_element.append(image_paths[i])
-            single_element.append(questions[i])
-            single_element.append(answers[i])
-            single_element.append(generated_text)
-            data_list.append(single_element)
-    df = pd.DataFrame(data_list, columns=['image_path', 'question', 'target_answer', 'predicted_answer'])
-    df.to_excel(generated_result_excel_file, index=False)
-    #print(df)
+    list_of_metrics = ['bleu', 'rouge', 'jac', 'em', 'f1', 'meteor']
+    list_of_agg = ['avg', 'sum']
+    eval_model(test_gen, processor, list_of_metrics, list_of_agg)
