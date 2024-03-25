@@ -20,3 +20,4 @@ cd test
 unzip '*.zip'
 rm *.zip
 pip install ruamel_yaml
+pip install rouge_score
