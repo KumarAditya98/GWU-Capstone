@@ -29,7 +29,7 @@ st.markdown(f"<h2 style='text-align: center;'><b>{title_text}</b></h2>", unsafe_
 tab1, tab2 = st.tabs(['Test Data Demo','General Scan Demo'])
 with tab1:
     st.subheader(f"Benchmarking performance on CLEF dataset")
-    selected_model = st.selectbox("Select the model to run inference", ('BLIP', 'BLIP-FineTuned', 'Vilt', 'GIT'),key = 1)
+    selected_model = st.selectbox("Select the model to run inference", ('BLIP', 'BLIP-FineTuned','Vilt', 'GIT'),key = 1)
     if selected_model == 'BLIP' or selected_model == 'BLIP-FineTuned':
         if selected_model == 'BLIP':
             processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
@@ -67,13 +67,13 @@ with tab1:
 
 with tab2:
     st.subheader(f"Evaluating performance on medical scan from internet")
-    selected_model = st.selectbox("Select the model to run inference", ('BLIP', 'BLIP-FineTuned', 'Vilt', 'GIT'),key = 2)
+    selected_model = st.selectbox("Select the model to run inference", ('BLIP', 'BLIP-FineTuned','Vilt', 'GIT'),key = 2)
     if selected_model == 'BLIP':
         processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
         model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
     elif selected_model == 'BLIP-FineTuned':
         processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
-        model = BlipForQuestionAnswering.from_pretrained("Model/blip-saved-model").to(device)
+        model = BlipForQuestionAnswering.from_pretrained("Model/blip-saved-model")
     image_file_tab2 = st.file_uploader("Upload medical image file to ask questions", type=["jpg", "jpeg", "png"])
     if image_file_tab2:
         st.image(image_file_tab2)
