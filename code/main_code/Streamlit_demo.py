@@ -29,7 +29,7 @@ st.markdown(f"<h2 style='text-align: center;'><b>{title_text}</b></h2>", unsafe_
 tab1, tab2 = st.tabs(['Test Data Demo','General Scan Demo'])
 with tab1:
     st.subheader(f"Benchmarking performance on CLEF dataset")
-    selected_model = st.selectbox("Select the model to run inference", ('BLIP', 'BLIP-FineTuned', 'Vilt', 'GIT'))
+    selected_model = st.selectbox("Select the model to run inference", ('BLIP', 'BLIP-FineTuned', 'Vilt', 'GIT'),key = 1)
     if selected_model == 'BLIP' or selected_model == 'BLIP-FineTuned':
         if selected_model == 'BLIP':
             processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
@@ -65,7 +65,25 @@ with tab1:
             index = np.where(st.session_state.questions == st.session_state.question)[0][0]
             st.write(f"The ground truth response is: {st.session_state.answers[index]}")
 
-
+with tab2:
+    st.subheader(f"Evaluating performance on medical scan from internet")
+    selected_model = st.selectbox("Select the model to run inference", ('BLIP', 'BLIP-FineTuned', 'Vilt', 'GIT'),key = 2)
+    if selected_model == 'BLIP':
+        processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
+        model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
+    elif selected_model == 'BLIP-FineTuned':
+        processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
+        model = BlipForQuestionAnswering.from_pretrained("Model/blip-saved-model").to(device)
+    image_file_tab2 = st.file_uploader("Upload medical image file to ask questions", type=["jpg", "jpeg", "png"])
+    if image_file_tab2:
+        st.image(image_file_tab2)
+        question_tab2 = st.text_input("Write down your question here")
+        image_tab2 = Image.open(image_file_tab2).convert('RGB')
+        encoding_tab2 = processor(image_tab2, question_tab2, return_tensors="pt")
+        out_tab2 = model.generate(**encoding_tab2)
+        generated_text_tab2 = processor.decode(out_tab2[0], skip_special_tokens=True)
+        if st.button("Generate response",key=3):
+            st.write(f"The generated response is: {generated_text_tab2.capitalize()}")
 
 def main():
     st.balloons()
