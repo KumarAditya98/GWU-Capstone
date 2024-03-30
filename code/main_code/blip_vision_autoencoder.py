@@ -62,20 +62,28 @@ class BlipDecoderLayer(nn.Module):
         super(BlipDecoderLayer, self).__init__()
         self.self_attn = BlipAttention(embed_dim)
         self.layer_norm1 = nn.LayerNorm(embed_dim)
-        self.mlp = BlipMLP(embed_dim)
+        self.cross_attn = BlipAttention(embed_dim)
         self.layer_norm2 = nn.LayerNorm(embed_dim)
+        self.mlp = BlipMLP(embed_dim)
 
-    def forward(self, x):
+    def forward(self, x, encoder_output):
         x_res = x
         x = self.self_attn(x)
         x = x_res + x
         x = self.layer_norm1(x)
+
+        # Cross-attention
+        x_res = x
+        x = self.cross_attn(x, encoder_output)
+        x = x_res + x
+        x = self.layer_norm2(x)
+
+        # MLP
         x_res = x
         x = self.mlp(x)
         x = x_res + x
-        x = self.layer_norm2(x)
-        return x
 
+        return x
 
 class BlipVisionModel(nn.Module):
     def __init__(self, embed_dim=768, num_layers=12):
@@ -90,11 +98,9 @@ class BlipVisionModel(nn.Module):
         B, C, H, W = x.shape
         x = x.flatten(2).transpose(1, 2)
 
-        # Encoder
         for layer in self.encoder:
             x = layer(x)
 
-        # Decoder
         for layer in self.decoder:
             x = layer(x)
 

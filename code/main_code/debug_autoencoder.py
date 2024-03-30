@@ -7,6 +7,8 @@ from PIL import Image
 from tqdm import tqdm
 from transformers import BlipProcessor, BlipForQuestionAnswering
 import pickle
+import torch.nn as nn
+import torch.nn.functional as F
 
 CUR_DIR = os.getcwd()
 CODE_DIR = os.path.dirname(CUR_DIR)
@@ -17,8 +19,8 @@ if not os.path.exists(EXCEL_FOLDER):
     raise FileNotFoundError(f"The folder {EXCEL_FOLDER} does not exist. Load data and run preprocessing first!! Exiting the program.")
 combined_data_excel_file = EXCEL_FOLDER  + os.sep + "combined_data.xlsx"
 xdf_data = pd.read_excel(combined_data_excel_file)
-xdf_dset = xdf_data[xdf_data["split"] == 'train'].copy()
-xdf_dset_test = xdf_data[xdf_data["split"] == 'val'].copy()
+xdf_dset = xdf_data[xdf_data["split"] == 'train'].copy().head(1)
+xdf_dset_test = xdf_data[xdf_data["split"] == 'val'].copy().head(1)
 
 processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
 
@@ -86,14 +88,120 @@ class CustomDataLoader:
         return training_generator, test_generator#, dev_generator
 
 
-def model_definition(config):
-    #model = model
-    model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
-    model = model.to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=4e-5)
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9, last_epoch=-1, verbose=False)
-    scaler = torch.cuda.amp.GradScaler()
-    return model, optimizer, scheduler, scaler
+class GELUActivation(nn.Module):
+    def forward(self, x):
+        return F.gelu(x)
+
+class BlipAttention(nn.Module):
+    def __init__(self, embed_dim):
+        super(BlipAttention, self).__init__()
+        self.dropout = nn.Dropout(p=0.0)
+        self.qkv = nn.Linear(embed_dim, embed_dim * 3)
+        self.projection = nn.Linear(embed_dim, embed_dim)
+
+    def forward(self, x):
+        B, N, C = x.size()
+        qkv = self.qkv(x).view(B, N, 3, C)  # Reshape without permute
+        q, k, v = qkv[:, :, 0], qkv[:, :, 1], qkv[:, :, 2]  # Change indexing for q, k, v
+        attn_weights = torch.matmul(q, k.transpose(-2, -1)) / (C ** 0.5)
+        attn_weights = F.softmax(attn_weights, dim=-1)
+        attn_weights = self.dropout(attn_weights)
+        x = torch.matmul(attn_weights, v)
+        x = x.transpose(1, 2).reshape(B, N, C)  # Transpose and reshape together
+        x = self.projection(x)
+        return x
+
+
+
+class BlipMLP(nn.Module):
+    def __init__(self, embed_dim):
+        super(BlipMLP, self).__init__()
+        self.activation_fn = GELUActivation()
+        self.fc1 = nn.Linear(embed_dim, embed_dim * 4)
+        self.fc2 = nn.Linear(embed_dim * 4, embed_dim)
+
+    def forward(self, x):
+        x = self.activation_fn(self.fc1(x))
+        x = self.fc2(x)
+        return x
+
+class BlipEncoderLayer(nn.Module):
+    def __init__(self, embed_dim):
+        super(BlipEncoderLayer, self).__init__()
+        self.self_attn = BlipAttention(embed_dim)
+        self.layer_norm1 = nn.LayerNorm(embed_dim)
+        self.mlp = BlipMLP(embed_dim)
+        self.layer_norm2 = nn.LayerNorm(embed_dim)
+
+    def forward(self, x):
+        x_res = x
+        x = self.self_attn(x)
+        x = x_res + x
+        x = self.layer_norm1(x)
+        x_res = x
+        x = self.mlp(x)
+        x = x_res + x
+        x = self.layer_norm2(x)
+        return x
+
+
+class BlipDecoderLayer(nn.Module):
+    def __init__(self, embed_dim):
+        super(BlipDecoderLayer, self).__init__()
+        self.self_attn = BlipAttention(embed_dim)
+        self.layer_norm1 = nn.LayerNorm(embed_dim)
+        # self.cross_attn = BlipAttention(embed_dim)
+        self.layer_norm2 = nn.LayerNorm(embed_dim)
+        self.mlp = BlipMLP(embed_dim)
+
+    def forward(self, x, encoder_output):
+        x_res = x
+        x = self.self_attn(x)
+        x = x_res + x
+        x = self.layer_norm1(x)
+
+        # Cross-attention
+        # x_res = x
+        # x = self.cross_attn(x, encoder_output)
+        # x = x_res + x
+        # x = self.layer_norm2(x)
+
+        # MLP
+        x_res = x
+        x = self.mlp(x)
+        x = x_res + x
+
+        return x
+
+
+class BlipVisionModel(nn.Module):
+    def __init__(self, embed_dim=768, num_layers=12):
+        super(BlipVisionModel, self).__init__()
+        self.patch_embedding = nn.Conv2d(3, embed_dim, kernel_size=(16, 16), stride=(16, 16))
+        self.encoder = nn.ModuleList([BlipEncoderLayer(embed_dim) for _ in range(num_layers)])
+        self.decoder = nn.ModuleList([BlipDecoderLayer(embed_dim) for _ in range(num_layers)])  # Add decoder layers
+        self.post_layernorm = nn.LayerNorm(embed_dim)
+
+    def forward(self, x):
+        x = self.patch_embedding(x)
+        B, C, H, W = x.shape
+        x = x.flatten(2).transpose(1, 2)
+
+        encoder_outputs = []  # Store encoder outputs for cross-attention in decoder
+
+        # Encoder
+        for layer in self.encoder:
+            x = layer(x)
+            encoder_outputs.append(x.clone())  # Store encoder output
+
+        # Decoder
+        for layer, encoder_output in zip(self.decoder, reversed(encoder_outputs)):  # Pass encoder output to decoder
+            x = layer(x, encoder_output)
+
+        x = x.transpose(1, 2).reshape(B, H // 16, W // 16, C)
+        x = x.permute(0, 3, 1, 2)
+        x = self.post_layernorm(x)
+        return x
 
 
 #%%
@@ -103,36 +211,44 @@ def train_test(train_gen, val_gen ,config):
     num_epochs = config["EPOCH"]
     min_eval_loss = float("inf")
     tracking_information = []
-    model, optimizer, scheduler, scaler = model_definition(config)
-
+    # model, optimizer, scheduler, scaler = model_definition(config)
+    model = BlipVisionModel()
+    model = model.to(device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=4e-5)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9, last_epoch=-1, verbose=False)
+    scaler = torch.cuda.amp.GradScaler()
     for epoch in range(num_epochs):
         # --Start Model Training--
         epoch_loss = 0
         train_loss = 0
         steps_train = 0
-        model.train()
-        with tqdm(total=len(train_gen), desc=f'Epoch {epoch}') as pbar:
-            for step, batch in enumerate(train_gen):
-                input_ids = batch.pop('input_ids').to(device)
-                pixel_values = batch.pop('pixel_values').to(device)
-                attention_masked = batch.pop('attention_mask').to(device)
-                labels = batch.pop('labels').to(device)
-                outputs = model(input_ids=input_ids,
-                                pixel_values=pixel_values,
-                                attention_mask=attention_masked,
-                                labels=labels)
-                loss = outputs.loss
-                epoch_loss += loss.item()
-                optimizer.zero_grad()
+        for step, batch in enumerate(train_gen):
+            pixel_values = batch['pixel_values'].to(device)
+        x = model.forward(pixel_values)
+        # model.train()
 
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-
-                pbar.update(1)
-                steps_train+=1
-                avg_train_loss = epoch_loss / steps_train
-                pbar.set_postfix_str(f'Train Loss: {avg_train_loss:.5f}')
+        # with tqdm(total=len(train_gen), desc=f'Epoch {epoch}') as pbar:
+        #     for step, batch in enumerate(train_gen):
+        #         input_ids = batch.pop('input_ids').to(device)
+        #         pixel_values = batch.pop('pixel_values').to(device)
+        #         attention_masked = batch.pop('attention_mask').to(device)
+        #         labels = batch.pop('labels').to(device)
+        #         # outputs = model(input_ids=input_ids,
+        #         #                 pixel_values=pixel_values,
+        #         #                 attention_mask=attention_masked,
+        #         #                 labels=labels)
+        #         loss = outputs.loss
+        #         epoch_loss += loss.item()
+        #         optimizer.zero_grad()
+        #
+        #         scaler.scale(loss).backward()
+        #         scaler.step(optimizer)
+        #         scaler.update()
+        #
+        #         pbar.update(1)
+        #         steps_train+=1
+        #         avg_train_loss = epoch_loss / steps_train
+        #         pbar.set_postfix_str(f'Train Loss: {avg_train_loss:.5f}')
 
         model.eval()
         eval_loss = 0
