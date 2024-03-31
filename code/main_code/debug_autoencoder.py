@@ -92,6 +92,25 @@ class GELUActivation(nn.Module):
     def forward(self, x):
         return F.gelu(x)
 
+# class BlipAttention(nn.Module):
+#     def __init__(self, embed_dim):
+#         super(BlipAttention, self).__init__()
+#         self.dropout = nn.Dropout(p=0.0)
+#         self.qkv = nn.Linear(embed_dim, embed_dim * 3)
+#         self.projection = nn.Linear(embed_dim, embed_dim)
+#
+#     def forward(self, x):
+#         B, N, C = x.size()
+#         qkv = self.qkv(x).view(B, N, 3, C)  # Reshape without permute
+#         q, k, v = qkv[:, :, 0], qkv[:, :, 1], qkv[:, :, 2]  # Change indexing for q, k, v
+#         attn_weights = torch.matmul(q, k.transpose(-2, -1)) / (C ** 0.5)
+#         attn_weights = F.softmax(attn_weights, dim=-1)
+#         attn_weights = self.dropout(attn_weights)
+#         x = torch.matmul(attn_weights, v)
+#         x = x.transpose(1, 2).reshape(B, N, C)  # Transpose and reshape together
+#         x = self.projection(x)
+#         return x
+#
 class BlipAttention(nn.Module):
     def __init__(self, embed_dim):
         super(BlipAttention, self).__init__()
@@ -99,7 +118,7 @@ class BlipAttention(nn.Module):
         self.qkv = nn.Linear(embed_dim, embed_dim * 3)
         self.projection = nn.Linear(embed_dim, embed_dim)
 
-    def forward(self, x):
+    def forward(self, x, encoder_output=None):
         B, N, C = x.size()
         qkv = self.qkv(x).view(B, N, 3, C)  # Reshape without permute
         q, k, v = qkv[:, :, 0], qkv[:, :, 1], qkv[:, :, 2]  # Change indexing for q, k, v
@@ -110,8 +129,6 @@ class BlipAttention(nn.Module):
         x = x.transpose(1, 2).reshape(B, N, C)  # Transpose and reshape together
         x = self.projection(x)
         return x
-
-
 
 class BlipMLP(nn.Module):
     def __init__(self, embed_dim):
@@ -145,28 +162,30 @@ class BlipEncoderLayer(nn.Module):
         return x
 
 
+
 class BlipDecoderLayer(nn.Module):
     def __init__(self, embed_dim):
         super(BlipDecoderLayer, self).__init__()
         self.self_attn = BlipAttention(embed_dim)
         self.layer_norm1 = nn.LayerNorm(embed_dim)
-        # self.cross_attn = BlipAttention(embed_dim)
+        self.cross_attn = BlipAttention(embed_dim)
         self.layer_norm2 = nn.LayerNorm(embed_dim)
         self.mlp = BlipMLP(embed_dim)
 
     def forward(self, x, encoder_output):
+        # Self-attention
         x_res = x
         x = self.self_attn(x)
         x = x_res + x
         x = self.layer_norm1(x)
 
         # Cross-attention
-        # x_res = x
-        # x = self.cross_attn(x, encoder_output)
-        # x = x_res + x
-        # x = self.layer_norm2(x)
+        x_res = x
+        x = self.cross_attn(x, encoder_output)
+        x = x_res + x
+        x = self.layer_norm2(x)
 
-        # MLP
+        # Position-wise feedforward network
         x_res = x
         x = self.mlp(x)
         x = x_res + x
@@ -181,74 +200,101 @@ class BlipVisionModel(nn.Module):
         self.encoder = nn.ModuleList([BlipEncoderLayer(embed_dim) for _ in range(num_layers)])
         self.decoder = nn.ModuleList([BlipDecoderLayer(embed_dim) for _ in range(num_layers)])  # Add decoder layers
         self.post_layernorm = nn.LayerNorm(embed_dim)
+        self.reconstruct_conv = nn.ConvTranspose2d(embed_dim, 3, kernel_size=(16, 16), stride=(16, 16))
 
-    def forward(self, x):
-        x = self.patch_embedding(x)
+    def forward(self, pixel_values):
+        x = self.patch_embedding(pixel_values)
         B, C, H, W = x.shape
         x = x.flatten(2).transpose(1, 2)
 
-        encoder_outputs = []  # Store encoder outputs for cross-attention in decoder
+        encoder_outputs = []
 
         # Encoder
         for layer in self.encoder:
             x = layer(x)
-            encoder_outputs.append(x.clone())  # Store encoder output
+            encoder_outputs.append(x.clone())
 
         # Decoder
-        for layer, encoder_output in zip(self.decoder, reversed(encoder_outputs)):  # Pass encoder output to decoder
-            x = layer(x, encoder_output)
+        decoder_output = x
+        for layer, encoder_output in zip(self.decoder, reversed(encoder_outputs)):
+            decoder_output = layer(decoder_output, encoder_output)
 
-        x = x.transpose(1, 2).reshape(B, H // 16, W // 16, C)
-        x = x.permute(0, 3, 1, 2)
-        x = self.post_layernorm(x)
-        return x
+        decoder_output = self.post_layernorm(decoder_output)
+        reconstructed_image = self.reconstruct_conv(decoder_output.view(B, -1, H, W))
+        return reconstructed_image
+    # def forward(self, x):
+    #     x = self.patch_embedding(x)
+    #     B, C, H, W = x.shape
+    #     x = x.flatten(2).transpose(1, 2)
+    #
+    #     encoder_outputs = []  # Store encoder outputs for cross-attention in decoder
+    #
+    #     # Encoder
+    #     for layer in self.encoder:
+    #         x = layer(x)
+    #         encoder_outputs.append(x.clone())  # Store encoder output
+    #
+    #     # Decoder
+    #     for layer, encoder_output in zip(self.decoder, reversed(encoder_outputs)):  # Pass encoder output to decoder
+    #         x = layer(x, encoder_output)
+    #
+    #     x = x.transpose(1, 2)#.reshape(B, H // 16, W // 16, C)
+    #     #x = x.permute(0, 3, 1, 2)
+    #     x = self.post_layernorm(x)
+    #     x = x.view(B, C, H, W)
+    #     return x
 
 
 #%%
+def model_definition():
+    #model = BlipForQuestionAnswering.from_pretrained("Model/blip-saved-model").to("cuda")
+    # model.to(device)
+    model = BlipVisionModel()
+    model = model.to(device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=4e-5)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9, last_epoch=-1, verbose=False)
+    scaler = torch.cuda.amp.GradScaler()
+    return model, optimizer, scheduler, scaler
+def compute_loss(reconstructed_images, original_images, loss_type='mse'):
+    if loss_type == 'mse':
+        loss = nn.MSELoss()(reconstructed_images, original_images)
+    elif loss_type == 'mae':
+        loss = nn.L1Loss()(reconstructed_images, original_images)
+    else:
+        raise ValueError("Unsupported loss type. Please choose 'mse' or 'mae'.")
+    return loss
 
 def train_test(train_gen, val_gen ,config):
     patience = config['patience']
     num_epochs = config["EPOCH"]
     min_eval_loss = float("inf")
     tracking_information = []
-    # model, optimizer, scheduler, scaler = model_definition(config)
-    model = BlipVisionModel()
-    model = model.to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=4e-5)
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9, last_epoch=-1, verbose=False)
-    scaler = torch.cuda.amp.GradScaler()
+    model, optimizer, scheduler, scaler = model_definition()
+    model.train()
+
+
     for epoch in range(num_epochs):
         # --Start Model Training--
         epoch_loss = 0
         train_loss = 0
         steps_train = 0
-        for step, batch in enumerate(train_gen):
-            pixel_values = batch['pixel_values'].to(device)
-        x = model.forward(pixel_values)
-        # model.train()
+        with tqdm(total=len(train_gen), desc=f'Epoch {epoch}') as pbar:
+            for step, batch in enumerate(train_gen):
+                pixel_values = batch['pixel_values'].to(device)
+                reconstructed_images = model(pixel_values)
+                print("done")
+                loss = compute_loss(reconstructed_images, pixel_values, loss_type='mse')
+                epoch_loss += loss.item()
+                optimizer.zero_grad()
 
-        # with tqdm(total=len(train_gen), desc=f'Epoch {epoch}') as pbar:
-        #     for step, batch in enumerate(train_gen):
-        #         input_ids = batch.pop('input_ids').to(device)
-        #         pixel_values = batch.pop('pixel_values').to(device)
-        #         attention_masked = batch.pop('attention_mask').to(device)
-        #         labels = batch.pop('labels').to(device)
-        #         # outputs = model(input_ids=input_ids,
-        #         #                 pixel_values=pixel_values,
-        #         #                 attention_mask=attention_masked,
-        #         #                 labels=labels)
-        #         loss = outputs.loss
-        #         epoch_loss += loss.item()
-        #         optimizer.zero_grad()
-        #
-        #         scaler.scale(loss).backward()
-        #         scaler.step(optimizer)
-        #         scaler.update()
-        #
-        #         pbar.update(1)
-        #         steps_train+=1
-        #         avg_train_loss = epoch_loss / steps_train
-        #         pbar.set_postfix_str(f'Train Loss: {avg_train_loss:.5f}')
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+
+                pbar.update(1)
+                steps_train += 1
+                avg_train_loss = epoch_loss / steps_train
+                pbar.set_postfix_str(f'Train Loss: {avg_train_loss:.5f}')
 
         model.eval()
         eval_loss = 0
@@ -256,19 +302,9 @@ def train_test(train_gen, val_gen ,config):
         with tqdm(total=len(val_gen), desc=f'Epoch {epoch}') as pbar:
             with torch.no_grad():
                 for step, batch in enumerate(train_gen):
-        # for idx, batch in zip(tqdm(range(len(val_gen)), desc='Validating batch: ...'), val_gen):
-                    input_ids = batch.pop('input_ids').to(device)
                     pixel_values = batch.pop('pixel_values').to(device)
-                    attention_masked = batch.pop('attention_mask').to(device)
-                    labels = batch.pop('labels').to(device)
-
-                    #with torch.amp.autocast(device_type='cuda', dtype=torch.float16):
-                    outputs = model(input_ids=input_ids,
-                                    pixel_values=pixel_values,
-                                    attention_mask=attention_masked,
-                                    labels=labels)
-
-                    loss = outputs.loss
+                    reconstructed_images = model(pixel_values)
+                    loss = compute_loss(reconstructed_images, pixel_values, loss_type='mse')
                     eval_loss += loss.item()
                     steps_test+=1
                     pbar.update(1)
@@ -282,8 +318,9 @@ def train_test(train_gen, val_gen ,config):
                                                                               optimizer.param_groups[0]["lr"]))
         scheduler.step()
         if eval_loss < min_eval_loss:
-            model.save_pretrained("Model/blip-saved-model", from_pt=True)
-            print("Saved model to Model/blip-saved-model")
+            #model.save_pretrained("Model/encoder-decoder-blip", from_pt=True)
+            torch.save(model.state_dict(), 'Model/encoder-decoder-blip.pth')
+            print("Saved model to Model/encoder-decoder-blip")
             min_eval_loss = eval_loss
             early_stopping_hook = 0
         else:
