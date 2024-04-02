@@ -16,6 +16,11 @@ rm *.zip\?download\=1
 mv ImageClef-2019-VQA-Med-Training train
 mv ImageClef-2019-VQA-Med-Validation val
 mv VQAMed2019Test test
+wget https://files.osf.io/v1/resources/89kps/providers/osfstorage/?zip=
+unzip  'index.html?zip='
+rm 'VQA_RAD Dataset Public.xlsx'
+rm 'VQA_RAD Dataset Public.xml'
+rm index.html?zip=
 cd test
 unzip '*.zip'
 rm *.zip

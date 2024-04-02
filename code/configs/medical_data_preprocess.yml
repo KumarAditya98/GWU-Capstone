@@ -3,7 +3,7 @@ medical_data_root: '//home/ubuntu/capstone/dataset/medical_data/'
 #val_data : 'val'
 #test_data : 'test'
 
-BATCH_SIZE : 15
-EPOCH : 20
+BATCH_SIZE : 10
+EPOCH : 15
 
 patience : 10
