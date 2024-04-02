@@ -224,16 +224,16 @@ def train_test(train_gen, val_gen ,config):
                 break
 
 if __name__ == '__main__':
-    yaml = YAML(typ='rt')
-    config_file = os.path.join(CONFIG_FOLDER + os.sep + "medical_data_preprocess.yml" )
-
-    with open(os.path.join(config_file), 'r') as file:
-        config = yaml.load(file)
-
-    data_loader = CustomDataLoader(config)
-    train_gen, val_gen = data_loader.read_data()
-
-    train_test(train_gen, val_gen,  config)
+    # yaml = YAML(typ='rt')
+    # config_file = os.path.join(CONFIG_FOLDER + os.sep + "medical_data_preprocess.yml" )
+    #
+    # with open(os.path.join(config_file), 'r') as file:
+    #     config = yaml.load(file)
+    #
+    # data_loader = CustomDataLoader(config)
+    # train_gen, val_gen = data_loader.read_data()
+    #
+    # train_test(train_gen, val_gen,  config)
     """
     Reference :  https://github.com/dino-chiio/blip-vqa-finetune/tree/main
     """
