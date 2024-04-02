@@ -18,6 +18,7 @@ from rouge_score import rouge_scorer
 from nltk.tokenize import word_tokenize
 from sklearn.metrics import jaccard_score
 import nltk
+import numpy as np
 nltk.download('punkt')
 nltk.download('wordnet')
 
@@ -102,8 +103,11 @@ def metrics_func(metrics, aggregates, y_true, y_pred):
     '''
 
     def bleu_score(y_true, y_pred):
-        smooth = SmoothingFunction().method1
-        return corpus_bleu(y_true, y_pred, smoothing_function=smooth)
+        bleu_scores = np.zeros(len(y_true))
+        for i in range(len(y_true)):
+            bleu_scores[i] = nltk.translate.bleu_score.sentence_bleu([y_true[i]], y_pred[i], smoothing_function=SmoothingFunction().method2)
+
+        return np.mean(bleu_scores)
 
     def rouge_score(y_true, y_pred):
         rougeL_scores = []
