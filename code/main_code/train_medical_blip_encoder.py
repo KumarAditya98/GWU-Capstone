@@ -92,6 +92,8 @@ def model_definition(config):
     encoder_decoder_model = EncoderDecoderModel()#BlipVisionModel()
     encoder_decoder_model.load_state_dict(torch.load('Model/encoder-decoder-blip.pth'))
     model.vision_model = encoder_decoder_model.vision_model
+    for param in model.vision_model.parameters():
+        param.requires_grad = False
     model = model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=4e-5)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9, last_epoch=-1, verbose=False)
@@ -142,7 +144,7 @@ def train_test(train_gen, val_gen ,config):
         steps_test = 0
         with tqdm(total=len(val_gen), desc=f'Epoch {epoch}') as pbar:
             with torch.no_grad():
-                for step, batch in enumerate(train_gen):
+                for step, batch in enumerate(val_gen):
         # for idx, batch in zip(tqdm(range(len(val_gen)), desc='Validating batch: ...'), val_gen):
                     input_ids = batch.pop('input_ids').to(device)
                     pixel_values = batch.pop('pixel_values').to(device)
