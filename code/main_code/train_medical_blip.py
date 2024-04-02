@@ -19,6 +19,7 @@ combined_data_excel_file = EXCEL_FOLDER  + os.sep + "combined_data.xlsx"
 xdf_data = pd.read_excel(combined_data_excel_file)
 xdf_dset = xdf_data[xdf_data["split"] == 'train'].copy()
 xdf_dset_test = xdf_data[xdf_data["split"] == 'val'].copy()
+#xdf_dset = xdf_dset[xdf_dset['image_path'].str.contains("VQA_RAD Image Folder")]
 
 processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
 
@@ -56,11 +57,12 @@ class CustomDataset(data.Dataset):
             question = xdf_dset_test.question.get(ID)
             answer = xdf_dset_test.answer.get(ID)
             image_path = xdf_dset_test.image_path.get(ID)
-
+        # if image_path.split('/')[-2] == "VQA_RAD Image Folder":
         image = Image.open(image_path).convert('RGB')
         encoding = self.processor(image, question, padding="max_length", truncation=True, return_tensors="pt")
+
         labels = self.processor.tokenizer.encode(
-            answer, max_length=8, pad_to_max_length=True, return_tensors='pt'
+            str(answer), max_length=8, pad_to_max_length=True, return_tensors='pt'
         )
         encoding["labels"] = labels
         for k,v in encoding.items():  encoding[k] = v.squeeze()
@@ -124,7 +126,6 @@ def train_test(train_gen, val_gen ,config):
                 loss = outputs.loss
                 epoch_loss += loss.item()
                 optimizer.zero_grad()
-
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
@@ -139,7 +140,7 @@ def train_test(train_gen, val_gen ,config):
         steps_test = 0
         with tqdm(total=len(val_gen), desc=f'Epoch {epoch}') as pbar:
             with torch.no_grad():
-                for step, batch in enumerate(train_gen):
+                for step, batch in enumerate(val_gen):
         # for idx, batch in zip(tqdm(range(len(val_gen)), desc='Validating batch: ...'), val_gen):
                     input_ids = batch.pop('input_ids').to(device)
                     pixel_values = batch.pop('pixel_values').to(device)
