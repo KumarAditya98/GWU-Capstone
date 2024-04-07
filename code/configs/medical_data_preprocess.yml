@@ -1,9 +1,9 @@
-medical_data_root: '//home/ubuntu/capstone/dataset/medical_data/'
+medical_data_root: '//home/ubuntu/VQA/dataset/medical_data/'
 #train_data : 'train'
 #val_data : 'val'
 #test_data : 'test'
 
-BATCH_SIZE : 10
-EPOCH : 15
+BATCH_SIZE : 16
+EPOCH : 10
 
 patience : 10
