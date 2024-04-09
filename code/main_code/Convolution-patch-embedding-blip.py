@@ -28,7 +28,6 @@ blip_model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base"
 patch_embedding_weight_init = blip_model.state_dict()['vision_model.embeddings.patch_embedding.weight']
 patch_embedding_bias_init = blip_model.state_dict()['vision_model.embeddings.patch_embedding.bias']
 
-#configuration = BlipConfig()
 
 is_cuda = torch.cuda.is_available()
 if is_cuda:
