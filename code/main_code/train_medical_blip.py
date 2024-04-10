@@ -15,7 +15,7 @@ EXCEL_FOLDER = PARENT_FOLDER + os.sep + 'Excel'
 CONFIG_FOLDER = CODE_DIR + os.sep + 'configs'
 if not os.path.exists(EXCEL_FOLDER):
     raise FileNotFoundError(f"The folder {EXCEL_FOLDER} does not exist. Load data and run preprocessing first!! Exiting the program.")
-combined_data_excel_file = EXCEL_FOLDER  + os.sep + "combined_data.xlsx"
+combined_data_excel_file = EXCEL_FOLDER  + os.sep + "combined_aug_data.xlsx"
 xdf_data = pd.read_excel(combined_data_excel_file)
 xdf_dset = xdf_data[xdf_data["split"] == 'train'].copy()
 xdf_dset_test = xdf_data[xdf_data["split"] == 'val'].copy()

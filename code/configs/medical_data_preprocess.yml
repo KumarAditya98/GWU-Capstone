@@ -3,7 +3,7 @@ medical_data_root: '//home/ubuntu/VQA/dataset/medical_data/'
 #val_data : 'val'
 #test_data : 'test'
 
-BATCH_SIZE : 16
-EPOCH : 10
+BATCH_SIZE : 12
+EPOCH : 20
 
 patience : 10

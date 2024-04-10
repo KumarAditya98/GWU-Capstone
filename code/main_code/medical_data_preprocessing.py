@@ -3,7 +3,8 @@ from ruamel.yaml import YAML
 import pandas as pd
 import numpy as np
 import imgaug.augmenters as iaa
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
+import random
 
 CUR_DIR = os.getcwd()
 CODE_DIR = os.path.dirname(CUR_DIR)
@@ -83,14 +84,6 @@ def augment_images(train_df, output_folder):
     # Create output folder if it doesn't exist
     os.makedirs(output_folder, exist_ok=True)
 
-    # Define augmentation sequence
-    seq = iaa.Sequential([
-        iaa.Fliplr(0.5),  # horizontal flips
-        iaa.Affine(rotate=(-10, 10)),  # random rotations
-        iaa.Affine(scale={"x": (0.8, 1.2), "y": (0.8, 1.2)}),
-        iaa.Affine(translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)})
-    ])
-
     augmented_data = []
 
     for index, row in train_df.iterrows():
@@ -101,21 +94,45 @@ def augment_images(train_df, output_folder):
             print(f"Error processing image at {image_path}: {e}")
             continue  # Skip if there's an error loading the image
 
-        # Convert PIL image to numpy array for augmentation
-        image_np = np.array(image)
+        # Blur
+        blurred_image = image.filter(ImageFilter.BLUR)
+        blurred_image_path = os.path.join(output_folder, f"{os.path.basename(image_path)[:-4]}_blur.jpg")
+        blurred_image.save(blurred_image_path)
+        augmented_data.append({
+            'image_path': blurred_image_path,
+            'question': row['question'],
+            'answer': row['answer'],
+            'split': row['split']
+        })
 
-        # Augment image
-        augmented_images = [seq(image=image_np) for _ in range(4)]  # Augment image 3 times
-        for i, augmented_image_np in enumerate(augmented_images):
-            augmented_image = Image.fromarray(augmented_image_np, 'RGB')  # Convert numpy array back to PIL image
-            augmented_image_path = os.path.join(output_folder, f"{os.path.basename(image_path)[:-4]}_aug_{i}.jpg")
-            augmented_image.save(augmented_image_path)  # Save augmented image
-            augmented_data.append({
-                'image_path': augmented_image_path,
-                'question': row['question'],
-                'answer': row['answer'],
-                'split': row['split']
-            })
+        # Brightness
+        brightness_factor = random.uniform(0.5, 1.5)  # Random brightness factor
+        brightness_enhancer = ImageEnhance.Brightness(image)
+        brightened_image = brightness_enhancer.enhance(brightness_factor)
+        brightened_image_path = os.path.join(output_folder, f"{os.path.basename(image_path)[:-4]}_bright.jpg")
+        brightened_image.save(brightened_image_path)
+        augmented_data.append({
+            'image_path': brightened_image_path,
+            'question': row['question'],
+            'answer': row['answer'],
+            'split': row['split']
+        })
+
+        # Noise
+        noise_factor = random.uniform(0.0, 0.1)  # Random noise factor
+        noisy_image = np.array(image)
+        noise = np.random.normal(scale=noise_factor, size=noisy_image.shape).astype(np.uint8)
+        noisy_image += noise
+        noisy_image = np.clip(noisy_image, 0, 255)
+        noisy_image = Image.fromarray(noisy_image)
+        noisy_image_path = os.path.join(output_folder, f"{os.path.basename(image_path)[:-4]}_noise.jpg")
+        noisy_image.save(noisy_image_path)
+        augmented_data.append({
+            'image_path': noisy_image_path,
+            'question': row['question'],
+            'answer': row['answer'],
+            'split': row['split']
+        })
 
     augmented_df = pd.DataFrame(augmented_data)
     return augmented_df
