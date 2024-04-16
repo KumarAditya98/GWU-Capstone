@@ -5,6 +5,7 @@ import numpy as np
 import imgaug.augmenters as iaa
 from PIL import Image, ImageEnhance, ImageFilter
 import random
+import argparse
 
 CUR_DIR = os.getcwd()
 CODE_DIR = os.path.dirname(CUR_DIR)
@@ -146,17 +147,19 @@ def create_excel(config):
     aug_folder = train_data_folder + os.sep + 'aug'
     train_data = get_dataframe(train_data_folder,file_type='Train')
     val_data = get_dataframe(val_data_folder,file_type='Val')
-    aug_data = augment_images(train_data, aug_folder)
-    combined_df = pd.concat([train_data, val_data], ignore_index=True)
-    combined_aug_df = pd.concat([train_data, val_data, aug_data], ignore_index=True)
     test_df = get_test_dataframe(test_data_folder)
-    final_combined_df, final_test_df = vqa_rad_setup(combined_df,test_df,root_data)
-    final_combined_df.to_excel(combined_data_excel_file, index=False)
-    combined_aug_df.to_excel(augmented_data_excel_file, index=False)
-    print(f"{'=' * 5} train val excel saved as combined_data.xlsx {'=' * 5}")
-    print(f"{'=' * 5} train with augmented data val excel saved as combined_aug_data.xlsx {'=' * 5}")
-
-
+    if args:
+        aug_data = augment_images(train_data, aug_folder)
+        combined_aug_df = pd.concat([train_data, val_data, aug_data], ignore_index=True)
+        final_combined_df_aug, final_test_df = vqa_rad_setup(combined_aug_df, test_df, root_data)
+        final_combined_df_aug.to_excel(augmented_data_excel_file, index=False)
+        print(f"{'=' * 5} train with augmented data val excel saved as combined_aug_data.xlsx {'=' * 5}")
+    else:
+        combined_df = pd.concat([train_data, val_data], ignore_index=True)
+        final_combined_df, final_test_df = vqa_rad_setup(combined_df, test_df, root_data)
+        final_combined_df.to_excel(combined_data_excel_file, index=False)
+        print(f"{'=' * 5} train val excel saved as combined_data.xlsx {'=' * 5}")
+    
     final_test_df.to_excel(test_data_excel_file, index=False)
     print(f"{'=' * 5}  test excel saved as test_data.xlsx {'=' * 5}")
 
@@ -178,4 +181,7 @@ def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-aug', type=bool, default=False, help='Specify if augmentation is required')
+    args = parser.parse_args()
     main()
