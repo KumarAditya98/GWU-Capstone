@@ -4,6 +4,6 @@ medical_data_root: '//home/ubuntu/VQA/dataset/medical_data/'
 #test_data : 'test'
 
 BATCH_SIZE : 12
-EPOCH : 10
+EPOCH : 5
 
 patience : 10

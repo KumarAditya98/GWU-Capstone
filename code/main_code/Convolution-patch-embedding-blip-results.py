@@ -190,7 +190,7 @@ def metrics_func(metrics, aggregates, y_true, y_pred):
 
     return res_dict
 def model_definition():
-    model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base").to("cuda")
+    model = BlipForQuestionAnswering.from_pretrained("Model/blip-saved-model_12_epochs_augmented_images").to("cuda")
     model2 = torch.load("Model/blip-conv-patch-embedding-finetune.pth")
     new_weights = model2["encoder.conv1.weight"]
     new_bias = model2["encoder.conv1.bias"]
