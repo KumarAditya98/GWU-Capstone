@@ -190,7 +190,7 @@ def metrics_func(metrics, aggregates, y_true, y_pred):
 
     return res_dict
 def model_definition():
-    model = BlipForQuestionAnswering.from_pretrained("Model/blip-saved-model")
+    model = BlipForQuestionAnswering.from_pretrained("Model/conv-blip-finetuned-saved-model")
     model.to(device)
     return model
 def eval_model(test_gen,processor, list_of_metrics, list_of_agg):
