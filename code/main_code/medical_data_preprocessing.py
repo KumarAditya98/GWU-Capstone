@@ -148,13 +148,15 @@ def create_excel(config):
     train_data = get_dataframe(train_data_folder,file_type='Train')
     val_data = get_dataframe(val_data_folder,file_type='Val')
     test_df = get_test_dataframe(test_data_folder)
-    if args:
+    if args.aug:
+        print('Augmenting the images!')
         aug_data = augment_images(train_data, aug_folder)
         combined_aug_df = pd.concat([train_data, val_data, aug_data], ignore_index=True)
         final_combined_df_aug, final_test_df = vqa_rad_setup(combined_aug_df, test_df, root_data)
         final_combined_df_aug.to_excel(augmented_data_excel_file, index=False)
         print(f"{'=' * 5} train with augmented data val excel saved as combined_aug_data.xlsx {'=' * 5}")
     else:
+        print('Augmentation not selected')
         combined_df = pd.concat([train_data, val_data], ignore_index=True)
         final_combined_df, final_test_df = vqa_rad_setup(combined_df, test_df, root_data)
         final_combined_df.to_excel(combined_data_excel_file, index=False)
