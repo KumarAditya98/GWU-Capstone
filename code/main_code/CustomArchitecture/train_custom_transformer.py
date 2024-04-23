@@ -53,10 +53,6 @@ def greedy_decode(model, question, question_mask,pixel_values, tokenizer, max_le
 
     # Precompute the encoder output and reuse it for every step
     encoder_output,image_embed = model.encode(question, question_mask,pixel_values=pixel_values.squeeze(1))
-    # alpha = 0.8  # Adjust the weight as needed
-    # combined_output = alpha * encoder_output + (1 - alpha) * image_embed
-    # encoder_output = combined_output
-    # Initialize the decoder input with the sos token
     decoder_input = torch.empty(1, 1).fill_(sos_idx).type_as(question).to(device)
     while True:
         if decoder_input.size(1) == max_len:
