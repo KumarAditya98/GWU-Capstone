@@ -1,3 +1,4 @@
+import numpy as np
 
 from custom_image_question_answer import build_transformer
 from dataset import QuestionAnswerDataset, causal_mask
@@ -10,13 +11,27 @@ from tokenizers.pre_tokenizers import Whitespace
 import os
 import pandas as pd
 import logging
+from nltk.translate.bleu_score import SmoothingFunction
+from nltk.translate.meteor_score import meteor_score
+#from nltk.translate.rouge_score import rouge_n, rouge_l
+#from rouge import Rouge
+#from rouge import Rouge
+from rouge_score import rouge_scorer
+from nltk.tokenize import word_tokenize
+from sklearn.metrics import jaccard_score
+import nltk
+import numpy as np
+nltk.download('punkt')
+nltk.download('wordnet')
+
+
 CUR_DIR = os.getcwd() #custom_archi
 MAIN_CODE_DIR = os.path.dirname(CUR_DIR) #main_code
 CODE_DIR = os.path.dirname(MAIN_CODE_DIR)
 PARENT_FOLDER = os.path.dirname(CODE_DIR) #main_code
 EXCEL_FOLDER = PARENT_FOLDER + os.sep + 'Excel'
 CONFIG_FOLDER = CODE_DIR + os.sep + 'configs'
-TOKENIZER_File = CONFIG_FOLDER + os.sep + 'qa_tokenizer.json'
+TOKENIZER_File = CONFIG_FOLDER + os.sep + 'custom_tokenizer.json'
 if not os.path.exists(EXCEL_FOLDER):
     raise FileNotFoundError(f"The folder {EXCEL_FOLDER} does not exist. Load data and run preprocessing first!! Exiting the program.")
 combined_data_excel_file = EXCEL_FOLDER  + os.sep + "combined_aug_data.xlsx"
@@ -46,7 +61,94 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
+def metrics_func(metrics, y_true, y_pred):
+    '''
+    multiple functiosn of metrics to call each function
+    bleu, rouge, jaccard, exact match, f1 score, meteo
+    list of metrics: bleu, rouge, jaccard, exact match, f1 score, meteo
+    list of aggregates : avg, sum
+    :return:
+    '''
 
+    def bleu_score(y_true, y_pred):
+        bleu_scores = np.zeros(len(y_true))
+        for i in range(len(y_true)):
+            bleu_scores[i] = nltk.translate.bleu_score.sentence_bleu([y_true[i]], y_pred[i], smoothing_function=SmoothingFunction().method2)
+
+        return np.mean(bleu_scores)
+
+    def rouge_score(y_true, y_pred):
+        rougeL_scores = []
+        scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'], use_stemmer=True)
+        for y_pred, y_true in zip(y_pred, y_true):
+            scores = scorer.score(y_pred, y_true)
+            rougeL_scores.append(scores['rougeL'].fmeasure)
+        avg_rougeL = sum(rougeL_scores) / len(rougeL_scores)
+
+        return  avg_rougeL
+    def compute_meteor_score(y_true_list, y_pred_list):
+        scores = []
+        for y_true, y_pred in zip(y_true_list, y_pred_list):
+            tokens_true = word_tokenize(y_true)
+            tokens_pred = word_tokenize(y_pred)
+            score = meteor_score([tokens_true], tokens_pred)
+            scores.append(score)
+        avg_score = sum(scores) / len(scores)
+        return avg_score
+    def jaccard_similarity(y_true, y_pred):
+        intersection = len(set(y_true) & set(y_pred))
+        union = len(set(y_true) | set(y_pred))
+        return intersection / union if union else 0.0
+    def exact_match(y_true, y_pred):
+        num_exact_matches = sum(1 for true, pred in zip(y_true, y_pred) if true == pred)
+        return num_exact_matches / len(y_true)
+    def f1_score(y_true, y_pred):
+        reference_tokens = set(y_true.split())
+        hypothesis_tokens = set(y_pred.split())
+        if len(hypothesis_tokens) == 0:
+            return 0.0
+        precision = len(reference_tokens.intersection(hypothesis_tokens)) / len(hypothesis_tokens)
+        recall = len(reference_tokens.intersection(hypothesis_tokens)) / len(reference_tokens)
+        f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+        return f1
+
+    def calculate_f1_scores(y_true_list, y_pred_list):
+        f1_scores = []
+        for y_true, y_pred in zip(y_true_list, y_pred_list):
+            f1 = f1_score(y_true, y_pred)
+            f1_scores.append(f1)
+        average_f1_score = sum(f1_scores) / len(f1_scores)
+        return average_f1_score
+
+    xcont = 1
+    xsum = 0
+    res_dict = {}
+    for xm in metrics:
+        if xm == 'bleu':
+            # f1 score average = micro
+            xmet = bleu_score(y_true, y_pred)
+        elif xm == 'rouge':
+            # f1 score average = macro
+            xmet = rouge_score(y_true, y_pred)
+        elif xm == 'meteor':
+            # f1 score average =
+            xmet = compute_meteor_score(y_true, y_pred)
+        elif xm == 'jac':
+             # Cohen kappa
+            xmet = jaccard_similarity(y_true, y_pred)
+        elif xm == 'em':
+            # Accuracy
+            xmet = exact_match(y_true, y_pred)
+        elif xm == 'f1':
+            # Matthews
+            xmet = calculate_f1_scores(y_true, y_pred)
+        else:
+            xmet = 0
+        res_dict[xm] = xmet
+        xsum = xsum + xmet
+        xcont = xcont +1
+
+    return res_dict
 def greedy_decode(model, question, question_mask,pixel_values, tokenizer, max_len, device):
     sos_idx = tokenizer.token_to_id('[SOS]')
     eos_idx = tokenizer.token_to_id('[EOS]')
@@ -78,7 +180,7 @@ def greedy_decode(model, question, question_mask,pixel_values, tokenizer, max_le
 def log_message(msg):
     logging.info(msg)
 
-def run_validation(model, validation_ds, tokenizer, max_len, device, print_msg,  num_examples=10):
+def run_validation(model, validation_ds, tokenizer, max_len, device):
     model.eval()
     count = 0
 
@@ -87,7 +189,7 @@ def run_validation(model, validation_ds, tokenizer, max_len, device, print_msg, 
     predicted = []
 
     with torch.no_grad():
-        for batch in validation_ds:
+        for batch in tqdm(validation_ds, desc="Validation"):
             count += 1
             question_input = batch["question_input"].to(device)  # (b, seq_len)
             question_mask = batch["question_mask"].to(device)  # (b, 1, 1, seq_len)
@@ -106,83 +208,40 @@ def run_validation(model, validation_ds, tokenizer, max_len, device, print_msg, 
             expected.append(answer_text)
             predicted.append(model_out_text)
 
-            # Print the question, answer and model output
-            #print_msg('-' * console_width)
-            # print_msg(f"{f'QUESTION: ':>12}{question_text}")
-            # print_msg(f"{f'ANSWER: ':>12}{answer_text}")
-            # print_msg(f"{f'PREDICTED: ':>12}{model_out_text}")
 
-            # if count == num_examples:
-            #     #print_msg('-' * console_width)
-            #     break
-
-    #if writer:
-        # Evaluate the character error rate
-        # Compute the char error rate
     metric = torchmetrics.CharErrorRate()
     cer = metric(predicted, expected)
     logging.info(f"Validation CER: {cer:.4f} ")
-    #writer.add_scalar('validation cer', cer, global_step)
-    #    writer.flush()
-
-        # Compute the word error rate
     metric = torchmetrics.WordErrorRate()
     wer = metric(predicted, expected)
-        #writer.add_scalar('validation wer', wer, global_step)
-        #writer.flush()
     logging.info(f"Validation WER: {wer:.4f} ")
         # Compute the BLEU metric
     metric = torchmetrics.BLEUScore()
     bleu = metric(predicted, expected)
-    #    writer.add_scalar('validation BLEU', bleu, global_step)
-    logging.info(f"Validation BLEU: {bleu:.4f} ")
-    #    writer.flush()
+    #logging.info(f"Validation BLEU: {bleu:.4f} ")
+    list_of_metrics = ['bleu', 'rouge', 'jac','em','f1','meteor']
+    res_dict = metrics_func(list_of_metrics, y_true=expected, y_pred=predicted)
+    for key, value in res_dict.items():
+        logging.info(f"Validation {key}: {value:.4f} ")
+        #print(f"{key}: {value:.2f}")
 
 
 def get_ds(config):
-    # Load your dataset
-    # ds_raw = load_dataset(f"{config['datasource']}", split='train')
-    #
-    # # Build tokenizer
-    # tokenizer = Tokenizer(BPE())
-    # tokenizer.pre_tokenizer = Whitespace()
-    # trainer = BpeTrainer(min_frequency=2,
-    #                      special_tokens=["[SOS]", "[EOS]", "[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"])
-    # tokenizer.train_from_iterator(ds_raw['question'] + ds_raw['answer'], trainer)
-    # tokenizer.save(config['tokenizer_file'])
-    #
-    # # Keep 90% for training, 10% for validation
-    # train_ds_size = int(0.9 * len(ds_raw))
-    # val_ds_size = len(ds_raw) - train_ds_size
-    # train_ds_raw, val_ds_raw = random_split(ds_raw, [train_ds_size, val_ds_size])
-
-
-
-
-    #tokenizer = Tokenizer.from_file(str(TOKENIZER_File))#tokenizer.save(TOKENIZER_File)
-
-    #TOKENIZER_File = "path/to/tokenizer.json"
-
-    try:
+    if os.path.exists(TOKENIZER_File):
         tokenizer = Tokenizer.from_file(str(TOKENIZER_File))
-    except FileNotFoundError:
+    else:
         print(f"Tokenizer file not found at {TOKENIZER_File}. Creating a new tokenizer...")
-
-        train_questions = train_ds_raw['question'].values
-        train_answers = train_ds_raw['answer'].values
-
-        all_data = train_questions + train_answers
-
-        # Create a tokenizer
+        train_questions = list(train_ds_raw['question'].values)
+        train_answers = list(train_ds_raw['answer'].values)
+        train_answers = [str(x) for x in train_answers]
+        all_data = train_questions.copy()
+        all_data.extend(train_answers)
+        #all_data = np.concatenate(train_questions,train_answers)
         tokenizer = Tokenizer(BPE())
         tokenizer.pre_tokenizer = Whitespace()
-
-        # Train the tokenizer on your data
         trainer = BpeTrainer(min_frequency=2,
                              special_tokens=["[SOS]", "[EOS]", "[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"])
         tokenizer.train_from_iterator(all_data, trainer)
-
-        # Save the tokenizer
         tokenizer.save(TOKENIZER_File)
         print(f"Tokenizer created and saved at {TOKENIZER_File}")
 
@@ -306,8 +365,7 @@ def train_model(config):
         logging.info(f"Train Loss: {avg_train_loss:.4f} at epoch {epoch}")
         logging.info("==========train loss========")
         # Run validation at the end of every epoch
-        run_validation(model, val_dataloader, tokenizer, config['answer_seq_len'], device,
-                       log_message)
+        run_validation(model, val_dataloader, tokenizer, config['answer_seq_len'], device)
 
         # Save the model at the end of every epoch
         model_filename = get_weights_file_path(config, f"{epoch:02d}")
