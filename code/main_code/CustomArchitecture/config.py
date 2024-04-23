@@ -3,19 +3,19 @@ from pathlib import Path
 def get_config():
     return {
         "batch_size": 10,
-        "num_epochs": 5,
+        "num_epochs": 3,
         "lr": 10**-4,
        # "seq_len": 350,
         "question_seq_len": 577,
         "answer_seq_len": 200,
         "d_model": 768,
-        "datasource": 'opus_books',
+        "datasource": 'custom_model',
         "lang_src": "en",
         "lang_tgt": "it",
         "model_folder": "weights",
         "model_basename": "tmodel_",
         "preload": "latest",
-        "tokenizer_file": "qa_tokenizer.json",
+       # "tokenizer_file": "qa_tokenizer.json",
         "experiment_name": "runs/tmodel"
     }
 
