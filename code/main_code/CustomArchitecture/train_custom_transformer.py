@@ -2,6 +2,10 @@
 from custom_image_question_answer import build_transformer
 from dataset import QuestionAnswerDataset, causal_mask
 from config import get_config, get_weights_file_path, latest_weights_file_path
+from tokenizers import Tokenizer
+from tokenizers.models import BPE
+from tokenizers.trainers import BpeTrainer
+from tokenizers.pre_tokenizers import Whitespace
 #from transformers import  BlipForQuestionAnswering
 import os
 import pandas as pd
@@ -156,7 +160,38 @@ def get_ds(config):
     # val_ds_size = len(ds_raw) - train_ds_size
     # train_ds_raw, val_ds_raw = random_split(ds_raw, [train_ds_size, val_ds_size])
 
-    tokenizer = Tokenizer.from_file(str(TOKENIZER_File))#tokenizer.save(TOKENIZER_File)
+
+
+
+    #tokenizer = Tokenizer.from_file(str(TOKENIZER_File))#tokenizer.save(TOKENIZER_File)
+
+    #TOKENIZER_File = "path/to/tokenizer.json"
+
+    try:
+        tokenizer = Tokenizer.from_file(str(TOKENIZER_File))
+    except FileNotFoundError:
+        print(f"Tokenizer file not found at {TOKENIZER_File}. Creating a new tokenizer...")
+
+        train_questions = xdf_dset['question'].values
+        train_answers = xdf_dset['answer'].values
+
+        all_data = train_questions + train_answers
+
+        # Create a tokenizer
+        tokenizer = Tokenizer(BPE())
+        tokenizer.pre_tokenizer = Whitespace()
+
+        # Train the tokenizer on your data
+        trainer = BpeTrainer(min_frequency=2,
+                             special_tokens=["[SOS]", "[EOS]", "[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"])
+        tokenizer.train_from_iterator(all_data, trainer)
+
+        # Save the tokenizer
+        tokenizer.save(TOKENIZER_File)
+        print(f"Tokenizer created and saved at {TOKENIZER_File}")
+
+
+
     train_ds = QuestionAnswerDataset(train_ds_raw, tokenizer,config['answer_seq_len'],config['question_seq_len'])#, config['seq_len'])
     val_ds = QuestionAnswerDataset(val_ds_raw, tokenizer,config['answer_seq_len'],config['question_seq_len'])#, config['seq_len'])
 
