@@ -1,15 +1,15 @@
-from transformer_model import build_transformer
+
+from custom_image_question_answer import build_transformer
 from dataset import QuestionAnswerDataset, causal_mask
 from config import get_config, get_weights_file_path, latest_weights_file_path
-from tokenizers import Tokenizer
-from tokenizers.models import BPE
-from tokenizers.trainers import BpeTrainer
-from tokenizers.pre_tokenizers import Whitespace
+#from transformers import  BlipForQuestionAnswering
 import os
 import pandas as pd
-CUR_DIR = os.getcwd()
-CODE_DIR = os.path.dirname(CUR_DIR)
-PARENT_FOLDER = os.path.dirname(CODE_DIR)
+import logging
+CUR_DIR = os.getcwd() #custom_archi
+CUSTOM_ARCHI_DIR = os.path.dirname(CUR_DIR) #customarchi
+CODE_DIR = os.path.dirname(CUSTOM_ARCHI_DIR)
+PARENT_FOLDER = os.path.dirname(CODE_DIR) #main_code
 EXCEL_FOLDER = PARENT_FOLDER + os.sep + 'Excel'
 CONFIG_FOLDER = CODE_DIR + os.sep + 'configs'
 TOKENIZER_File = CONFIG_FOLDER + os.sep + 'qa_tokenizer.json'
@@ -19,11 +19,12 @@ combined_data_excel_file = EXCEL_FOLDER  + os.sep + "combined_aug_data.xlsx"
 xdf_data = pd.read_excel(combined_data_excel_file)
 train_ds_raw = xdf_data[xdf_data["split"] == 'train'].copy().reset_index()#.head(100)
 val_ds_raw = xdf_data[xdf_data["split"] == 'val'].copy().reset_index()#.head(100)
+#blip_model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
 
+#from transformers import  BlipForQuestionAnswering
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader, random_split
-from torch.optim.lr_scheduler import LambdaLR
+from torch.utils.data import DataLoader
 
 import warnings
 from tqdm import tqdm
@@ -31,22 +32,21 @@ import os
 from pathlib import Path
 
 # Huggingface datasets and tokenizers
-from datasets import load_dataset
 from tokenizers import Tokenizer
-from tokenizers.models import BPE
-from tokenizers.trainers import BpeTrainer
-from tokenizers.pre_tokenizers import Whitespace
 
 import torchmetrics
 from torch.utils.tensorboard import SummaryWriter
 
 
-def greedy_decode(model, question, question_mask, tokenizer, max_len, device):
+def greedy_decode(model, question, question_mask,pixel_values, tokenizer, max_len, device):
     sos_idx = tokenizer.token_to_id('[SOS]')
     eos_idx = tokenizer.token_to_id('[EOS]')
 
     # Precompute the encoder output and reuse it for every step
-    encoder_output = model.encode(question, question_mask)
+    encoder_output,image_embed = model.encode(question, question_mask,pixel_values=pixel_values.squeeze(1))
+    # alpha = 0.8  # Adjust the weight as needed
+    # combined_output = alpha * encoder_output + (1 - alpha) * image_embed
+    # encoder_output = combined_output
     # Initialize the decoder input with the sos token
     decoder_input = torch.empty(1, 1).fill_(sos_idx).type_as(question).to(device)
     while True:
@@ -57,7 +57,7 @@ def greedy_decode(model, question, question_mask, tokenizer, max_len, device):
         decoder_mask = causal_mask(decoder_input.size(1)).type_as(question_mask).to(device)
 
         # calculate output
-        out = model.decode(encoder_output, question_mask, decoder_input, decoder_mask)
+        out = model.decode(encoder_output, question_mask, decoder_input, decoder_mask,image_embed)
 
         # get next token
         prob = model.project(out[:, -1])
@@ -94,12 +94,12 @@ def run_validation(model, validation_ds, tokenizer, max_len, device, print_msg, 
             count += 1
             question_input = batch["question_input"].to(device)  # (b, seq_len)
             question_mask = batch["question_mask"].to(device)  # (b, 1, 1, seq_len)
-
+            pixel_values = batch["pixel_values"].to(device)
             # check that the batch size is 1
             assert question_input.size(
                 0) == 1, "Batch size must be 1 for validation"
 
-            model_out = greedy_decode(model, question_input, question_mask, tokenizer, max_len, device)
+            model_out = greedy_decode(model, question_input, question_mask,pixel_values, tokenizer, max_len, device)
 
             question_text = batch["question_text"][0]
             answer_text = batch["answer_text"][0]
@@ -158,8 +158,8 @@ def get_ds(config):
     # train_ds_raw, val_ds_raw = random_split(ds_raw, [train_ds_size, val_ds_size])
 
     tokenizer = Tokenizer.from_file(str(TOKENIZER_File))#tokenizer.save(TOKENIZER_File)
-    train_ds = QuestionAnswerDataset(train_ds_raw, tokenizer, config['seq_len'])
-    val_ds = QuestionAnswerDataset(val_ds_raw, tokenizer, config['seq_len'])
+    train_ds = QuestionAnswerDataset(train_ds_raw, tokenizer,config['answer_seq_len'],config['question_seq_len'])#, config['seq_len'])
+    val_ds = QuestionAnswerDataset(val_ds_raw, tokenizer,config['answer_seq_len'],config['question_seq_len'])#, config['seq_len'])
 
     train_dataloader = DataLoader(train_ds, batch_size=config['batch_size'], shuffle=True)
     val_dataloader = DataLoader(val_ds, batch_size=1, shuffle=True)
@@ -168,12 +168,14 @@ def get_ds(config):
 
 
 def get_model(config, vocab_len):
-    model = build_transformer(vocab_len, vocab_len, config["seq_len"], config['seq_len'], d_model=config['d_model'])
+    #model = build_transformer(vocab_len, vocab_len, config["seq_len"], config['seq_len'], d_model=config['d_model'])
+    model = build_transformer(vocab_len, config["question_seq_len"], config['answer_seq_len'], d_model=config['d_model'])
     return model
 
 
 def train_model(config):
     # Define the device
+    global blip_vision_model
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.has_mps or torch.backends.mps.is_available() else "cpu"
     print("Using device:", device)
     if (device == 'cuda'):
@@ -195,7 +197,15 @@ def train_model(config):
     train_dataloader, val_dataloader, tokenizer = get_ds(config)
     model = get_model(config, tokenizer.get_vocab_size()).to(device)
     # Tensorboard
-    writer = SummaryWriter(config['experiment_name'])
+    #writer = SummaryWriter(config['experiment_name'])
+    # Configure logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+
+    # Log the updates
+    logging.info(f"Experiment Name: {config['experiment_name']}")
+    logging.info(f"Epoch: {epoch}")
+    logging.info(f"Loss: {loss.item():.4f}")
+    logging.info(f"Accuracy: {accuracy:.4f}")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config['lr'], eps=1e-9)
 
@@ -216,7 +226,7 @@ def train_model(config):
         print('No model to preload, starting from scratch')
 
     loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer.token_to_id('[PAD]'), label_smoothing=0.1).to(device)
-
+    #blip_vision_model = blip_vision_model.to(device)
     for epoch in range(initial_epoch, config['num_epochs']):
         torch.cuda.empty_cache()
         model.train()
@@ -226,11 +236,15 @@ def train_model(config):
             answer_input = batch['answer_input'].to(device)  # (B, seq_len)
             question_mask = batch['question_mask'].to(device)  # (B, 1, 1, seq_len)
             answer_mask = batch['answer_mask'].to(device)  # (B, 1, seq_len, seq_len)
-
+            pixel_values = batch['pixel_values'].to(device)
             # Run the tensors through the encoder, decoder and the projection layer
-            encoder_output = model.encode(question_input, question_mask)  # (B, seq_len, d_model)
+            #image_embedding =blip_vision_model(pixel_values = pixel_values.squeeze(1))
+            encoder_output,image_embed = model.encode(question_input, question_mask,pixel_values=pixel_values.squeeze(1))  # (B, seq_len, d_model)
+            # alpha = 0.4  # Adjust the weight as needed
+            # combined_output = alpha * encoder_output + (1 - alpha) * image_embed
+            # encoder_output=combined_output
             decoder_output = model.decode(encoder_output, question_mask, answer_input,
-                                          answer_mask)  # (B, seq_len, d_model)
+                                          answer_mask,image_embed)  # (B, seq_len, d_model)
             proj_output = model.project(decoder_output)  # (B, seq_len, vocab_size)
 
             # Compare the output with the label
@@ -254,7 +268,7 @@ def train_model(config):
             global_step += 1
 
         # Run validation at the end of every epoch
-        run_validation(model, val_dataloader, tokenizer, config['seq_len'], device,
+        run_validation(model, val_dataloader, tokenizer, config['answer_seq_len'], device,
                        lambda msg: batch_iterator.write(msg), global_step, writer)
 
         # Save the model at the end of every epoch
@@ -270,4 +284,5 @@ def train_model(config):
 if __name__ == '__main__':
     warnings.filterwarnings("ignore")
     config = get_config()
+    config['d_model']  =768
     train_model(config)
