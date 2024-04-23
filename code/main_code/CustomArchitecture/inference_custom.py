@@ -49,7 +49,7 @@ CODE_DIR = os.path.dirname(MAIN_CODE_DIR)
 PARENT_FOLDER = os.path.dirname(CODE_DIR) #main_code
 EXCEL_FOLDER = PARENT_FOLDER + os.sep + 'Excel'
 CONFIG_FOLDER = CODE_DIR + os.sep + 'configs'
-TOKENIZER_File = CONFIG_FOLDER + os.sep + 'qa_tokenizer.json'
+TOKENIZER_File = CONFIG_FOLDER + os.sep + 'custom_tokenizer.json'
 tokenizer = Tokenizer.from_file(str(TOKENIZER_File))
 if not os.path.exists(EXCEL_FOLDER):
     raise FileNotFoundError(f"The folder {EXCEL_FOLDER} does not exist. Load data and run preprocessing first!! Exiting the program.")
@@ -59,13 +59,13 @@ xdf_data = pd.read_excel(combined_data_excel_file)
 val_ds_raw = xdf_data[xdf_data["split"] == 'val'].copy().reset_index()
 
 
-def bleu_score(y_true, y_pred):
-    bleu_scores = np.zeros(len(y_true))
-    for i in range(len(y_true)):
-        bleu_scores[i] = nltk.translate.bleu_score.sentence_bleu([y_true[i]], y_pred[i],
-                                                                 smoothing_function=SmoothingFunction().method2)
-
-    return np.mean(bleu_scores)
+# def bleu_score(y_true, y_pred):
+#     bleu_scores = np.zeros(len(y_true))
+#     for i in range(len(y_true)):
+#         bleu_scores[i] = nltk.translate.bleu_score.sentence_bleu([y_true[i]], y_pred[i],
+#                                                                  smoothing_function=SmoothingFunction().method2)
+#
+#     return np.mean(bleu_scores)
 def metrics_func(metrics, y_true, y_pred):
     '''
     multiple functiosn of metrics to call each function
