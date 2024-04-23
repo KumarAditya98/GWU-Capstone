@@ -172,8 +172,8 @@ def get_ds(config):
     except FileNotFoundError:
         print(f"Tokenizer file not found at {TOKENIZER_File}. Creating a new tokenizer...")
 
-        train_questions = xdf_dset['question'].values
-        train_answers = xdf_dset['answer'].values
+        train_questions = train_ds_raw['question'].values
+        train_answers = train_ds_raw['answer'].values
 
         all_data = train_questions + train_answers
 
@@ -190,7 +190,7 @@ def get_ds(config):
         tokenizer.save(TOKENIZER_File)
         print(f"Tokenizer created and saved at {TOKENIZER_File}")
 
-
+    tokenizer = Tokenizer.from_file(str(TOKENIZER_File))
 
     train_ds = QuestionAnswerDataset(train_ds_raw, tokenizer,config['answer_seq_len'],config['question_seq_len'])#, config['seq_len'])
     val_ds = QuestionAnswerDataset(val_ds_raw, tokenizer,config['answer_seq_len'],config['question_seq_len'])#, config['seq_len'])
