@@ -271,6 +271,8 @@ def train_model(config):
             for batch in tqdm(val_dataloader, desc="Validation"):
                 question_input = batch["question_input"].to(device)  # (b, seq_len)
                 question_mask = batch["question_mask"].to(device)  # (b, 1, 1, seq_len)
+                answer_input = batch['answer_input'].to(device)
+                answer_mask = batch['answer_mask'].to(device)
                 pixel_values = batch["pixel_values"].to(device)
                 question_text = batch["question_text"]#.to(device)
                 answer_text = batch["answer_text"]#.to(device)
