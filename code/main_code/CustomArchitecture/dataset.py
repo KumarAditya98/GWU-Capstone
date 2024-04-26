@@ -74,7 +74,7 @@ class QuestionAnswerDataset(Dataset):
 
         # Transform the text into tokens
         question_tokens = self.tokenizer.encode(question_text).ids
-        answer_tokens = self.tokenizer.encode(answer_text).ids
+        answer_tokens = self.tokenizer.encode(str(answer_text)).ids
 
         # Add sos, eos and padding to each sentence
         # question_num_padding_tokens = self.seq_len - len(question_tokens) - 2  # We will add <s> and </s>
