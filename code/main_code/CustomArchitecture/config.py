@@ -9,7 +9,7 @@ def get_config():
         "question_seq_len": 577,
         "answer_seq_len": 200,
         "d_model": 768,
-        "datasource": 'custom_model',
+        "datasource": 'Custom_model',
         "lang_src": "en",
         "lang_tgt": "it",
         "model_folder": "weights",
