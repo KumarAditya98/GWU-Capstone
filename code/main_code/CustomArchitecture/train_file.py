@@ -35,8 +35,8 @@ if not os.path.exists(EXCEL_FOLDER):
     raise FileNotFoundError(f"The folder {EXCEL_FOLDER} does not exist. Load data and run preprocessing first!! Exiting the program.")
 combined_data_excel_file = EXCEL_FOLDER  + os.sep + "combined_aug_data.xlsx"
 xdf_data = pd.read_excel(combined_data_excel_file)
-train_ds_raw = xdf_data[xdf_data["split"] == 'train'].copy().reset_index()#.head(20)
-val_ds_raw = xdf_data[xdf_data["split"] == 'val'].copy().reset_index()#.head(20)
+train_ds_raw = xdf_data[xdf_data["split"] == 'train'].copy().reset_index().head(20)
+val_ds_raw = xdf_data[xdf_data["split"] == 'val'].copy().reset_index().head(20)
 #blip_model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
 
 #from transformers import  BlipForQuestionAnswering
@@ -187,9 +187,9 @@ def model_definition(config, vocab_len):
     preload = config['preload']
     initial_epoch =0
     global_step =0
+    met_test_best = 0.0
     model_filename = latest_weights_file_path(config) if preload == 'latest' else get_weights_file_path(config,
                                                                                                         preload) if preload else None
-
     if model_filename:
         print(f'Preloading model {model_filename}')
         state = torch.load(model_filename)
@@ -197,10 +197,11 @@ def model_definition(config, vocab_len):
         initial_epoch = state['epoch'] + 1
         optimizer.load_state_dict(state['optimizer_state_dict'])
         global_step = state['global_step']
+        met_test_best = state['met_test_best']
     else:
         print('No model to preload, starting from scratch')
 
-    return model,optimizer,initial_epoch, global_step
+    return model,optimizer,initial_epoch, global_step, met_test_best
 
 def train_model(config):
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -211,7 +212,7 @@ def train_model(config):
 
     device = torch.device(device)
     train_dataloader, val_dataloader, tokenizer = get_dataset_tokenizer(config)
-    model, optimizer, intital_epoch, global_step = model_definition(config, tokenizer.get_vocab_size())
+    model, optimizer, intital_epoch, global_step, met_test_best = model_definition(config, tokenizer.get_vocab_size())
 
     sos_idx = tokenizer.token_to_id('[SOS]')
     eos_idx = tokenizer.token_to_id('[EOS]')
@@ -302,8 +303,6 @@ def train_model(config):
                         break
                 model_out = decoder_outputs
 
-                #question_text_batch = batch["question_text"]
-                #answer_text_batch = batch["answer_text"]
                 model_out_text_batch = [tokenizer.decode(output.detach().cpu().numpy()) for output in model_out]
                 question_texts.extend(question_text)
                 expected.extend(answer_text)
@@ -350,13 +349,26 @@ def train_model(config):
             logging.info(f"Validation {key}: {value:.4f} ")
         print(res_str)
 
-        model_filename = get_weights_file_path(config, f"{epoch:02d}")
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'global_step': global_step
-        }, model_filename)
+        # Save Best Model
+        if res_dict['bleu'] >= met_test_best:
+            model_filename = get_weights_file_path(config, f"{epoch:02d}")
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'global_step': global_step,
+                'met_test_best': met_test_best
+            }, model_filename)
+            print('Model Saved !!')
+            met_test_best = res_dict['bleu']
+
+        # model_filename = get_weights_file_path(config, f"{epoch:02d}")
+        # torch.save({
+        #     'epoch': epoch,
+        #     'model_state_dict': model.state_dict(),
+        #     'optimizer_state_dict': optimizer.state_dict(),
+        #     'global_step': global_step
+        # }, model_filename)
 
         ############ Evaluation metric ######
                 ###################### decoder #########################################
