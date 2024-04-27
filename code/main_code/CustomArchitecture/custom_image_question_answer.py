@@ -195,9 +195,9 @@ class Decoder(nn.Module):
 
     def __init__(self, features: int, layers: nn.ModuleList) -> None:
         super().__init__()
+        self.projection_layer = nn.Linear(768 * 2, 768)
         self.layers = layers
         self.norm = LayerNormalization(features)
-        self.projection_layer = nn.Linear(768*2, 768)
     def forward(self, x, encoder_output, src_mask, tgt_mask,image_embed):
         #alpha = 0.4
         #encoder_output =  alpha * encoder_output + (1 - alpha) * image_embed
