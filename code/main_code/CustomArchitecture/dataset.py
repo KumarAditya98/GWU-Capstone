@@ -60,7 +60,7 @@ class QuestionAnswerDataset(Dataset):
         try:
             question_answer_pair = self.ds.loc[idx]
             question_text = question_answer_pair['question']
-            answer_text = question_answer_pair['answer']
+            answer_text = str(question_answer_pair['answer'])
 
             pixel_values = self.image_processor.forward(question_answer_pair['image_path'])['pixel_values']
             #image_embeddings = ImageProcessor(question_answer_pair['image_path'])

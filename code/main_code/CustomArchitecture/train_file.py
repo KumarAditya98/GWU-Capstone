@@ -279,30 +279,60 @@ def train_model(config):
 
                 encoder_output, image_embed = model.encode(question_input, question_mask,
                                                            pixel_values=pixel_values.squeeze(1))
+                ###################### decoder #########################################
 
-                # Generate the whole answer sequence in one shot
-                decoder_output = model.decode(encoder_output, question_mask, answer_input, answer_mask, image_embed)
-                proj_output = model.project(decoder_output)  # (B, seq_len, vocab_size)
+                decoder_input = torch.empty(batch_size, 1).fill_(sos_idx).type_as(question_input).to(device) #(b,1) sos
+                decoder_outputs = torch.empty(batch_size, 0).type_as(question_input).long().to(device) #(batch_size, 0)
 
-                # Compare the output with the label
-                label = batch["label"].to(device)  # (B, seq_len)
-                loss = loss_fn(proj_output.view(-1, tokenizer.get_vocab_size()), label.view(-1))
+                while True:
+                    if decoder_input.size(1) == config['answer_seq_len']:
+                        break
 
-                val_epoch_loss += loss.item()
-                val_epoch_step_size +=1
-                # Convert model output to text
-                model_out = torch.argmax(proj_output, dim=-1)  # (B, seq_len)
+                    # build mask for target
+                    decoder_mask = causal_mask(decoder_input.size(1)).type_as(question_mask).to(device)
+                    decoder_mask = decoder_mask.unsqueeze(0).expand(batch_size, 1, -1, -1)
+                    out = model.decode(encoder_output, question_mask, decoder_input, decoder_mask, image_embed) #next token prob
 
+                    # get next token
+                    prob = model.project(out[:, -1])
+                    _, next_word = torch.max(prob, dim=1)
+                    decoder_outputs = torch.cat([decoder_outputs, next_word.unsqueeze(-1)], dim=1)
+                    decoder_input = torch.cat([decoder_input, next_word.unsqueeze(-1)], dim=1)
+                    if (next_word == eos_idx).all() or decoder_input.size(1) == config['answer_seq_len']:#all have eos or max seq len reached
+                        break
+                model_out = decoder_outputs
+
+                #question_text_batch = batch["question_text"]
+                #answer_text_batch = batch["answer_text"]
                 model_out_text_batch = [tokenizer.decode(output.detach().cpu().numpy()) for output in model_out]
-
                 question_texts.extend(question_text)
                 expected.extend(answer_text)
                 predicted.extend(model_out_text_batch)
-        avg_val_loss = val_epoch_loss / val_epoch_step_size
 
-        logging.info("==========val loss========")
-        logging.info(f"Val Loss: {avg_val_loss:.4f} at epoch {epoch}")
-        logging.info("==========val loss========")
+                ###################decoder end
+                # Generate the whole answer sequence in one shot
+                # decoder_output = model.decode(encoder_output, question_mask, answer_input, answer_mask, image_embed)
+                # proj_output = model.project(decoder_output)  # (B, seq_len, vocab_size)
+                #
+                # # Compare the output with the label
+                # label = batch["label"].to(device)  # (B, seq_len)
+                # loss = loss_fn(proj_output.view(-1, tokenizer.get_vocab_size()), label.view(-1))
+                #
+                #val_epoch_loss += loss.item()
+                #val_epoch_step_size +=1
+                # # Convert model output to text
+                # model_out = torch.argmax(proj_output, dim=-1)  # (B, seq_len)
+
+                # model_out_text_batch = [tokenizer.decode(output.detach().cpu().numpy()) for output in model_out]
+                #
+                # question_texts.extend(question_text)
+                # expected.extend(answer_text)
+                # predicted.extend(model_out_text_batch)
+        #avg_val_loss = val_epoch_loss / val_epoch_step_size
+
+        #logging.info("==========val loss========")
+        #logging.info(f"Val Loss: {avg_val_loss:.4f} at epoch {epoch}")
+        #logging.info("==========val loss========")
 
         ############ Evaluation metric ######
         metric = torchmetrics.CharErrorRate()
