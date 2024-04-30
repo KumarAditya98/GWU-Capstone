@@ -59,7 +59,7 @@ xdf_data = pd.read_excel(combined_data_excel_file)
 
 test_data_excel_file = EXCEL_FOLDER  + os.sep + "test_data.xlsx"
 
-generated_result_folder = EXCEL_FOLDER  + os.sep + 'generated_result_proposed_model'
+generated_result_folder = EXCEL_FOLDER  + os.sep + 'generated_result_proposed_model.xlsx'
 current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 if not os.path.exists(generated_result_folder):
     os.mkdir(generated_result_folder)
