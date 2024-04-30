@@ -30,7 +30,7 @@ from nltk.corpus import wordnet
 from sklearn.metrics import accuracy_score, f1_score
 
 # SET CACHE FOR HUGGINGFACE TRANSFORMERS + DATASETS
-os.environ['HF_HOME'] = os.path.join(".", "cache")
+os.environ['HF_HOME'] = os.path.join("", "cache")
 # SET ONLY 1 GPU DEVICE
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
@@ -127,7 +127,7 @@ class MultimodalCollator:
 
     def preprocess_images(self, images: List[str]):
         processed_images = self.preprocessor(
-            images=[Image.open(os.path.join("..", "dataset", "images", image_id + ".png")).convert('RGB') for image_id
+            images=[Image.open(os.path.join("../../..", "dataset", "images", image_id + ".png")).convert('RGB') for image_id
                     in images],
             return_tensors="pt",
         )
