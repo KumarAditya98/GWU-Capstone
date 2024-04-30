@@ -9,12 +9,13 @@ def get_config():
         "question_seq_len": 577,
         "answer_seq_len": 200,
         "d_model": 768,
-        "datasource": 'Custom_model_new',
+        "datasource": 'Custom_model',
         "lang_src": "en",
         "lang_tgt": "it",
         "model_folder": "weights",
         "model_basename": "tmodel_",
-        "preload": "latest",
+        "preload": "07",
+        #"preload": "latest",
        # "tokenizer_file": "qa_tokenizer.json",
         "experiment_name": "runs/tmodel"
     }
