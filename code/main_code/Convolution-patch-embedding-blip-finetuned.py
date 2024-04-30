@@ -97,8 +97,8 @@ def model_definition(config):
     model.state_dict()['vision_model.embeddings.patch_embedding.weight'].copy_(new_weights)
     model.state_dict()['vision_model.embeddings.patch_embedding.bias'].copy_(new_bias)
     model = model.to(device)
-    for param in model.vision_model.embeddings.patch_embedding.parameters():
-        param.requires_grad = False
+    # for param in model.vision_model.embeddings.patch_embedding.parameters():
+    #     param.requires_grad = False
     model = model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=4e-5)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9, last_epoch=-1, verbose=False)
@@ -175,8 +175,8 @@ def train_test(train_gen, val_gen ,config):
                                                                               optimizer.param_groups[0]["lr"]))
         scheduler.step()
         if eval_loss < min_eval_loss:
-            model.save_pretrained("Model/conv-blip-finetuned-saved-model", from_pt=True)
-            print("Saved model to Model/conv-blip-finetuned-saved-model")
+            model.save_pretrained("Model/conv-blip-finetuned-saved-model_1", from_pt=True)
+            print("Saved model to Model/conv-blip-finetuned-saved-model_1")
             min_eval_loss = eval_loss
             early_stopping_hook = 0
         else:

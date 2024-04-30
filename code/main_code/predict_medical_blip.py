@@ -34,7 +34,7 @@ generated_result_folder = EXCEL_FOLDER  + os.sep + 'generated_result'
 current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 if not os.path.exists(generated_result_folder):
     os.mkdir(generated_result_folder)
-generated_result_excel_file = f"{generated_result_folder}{os.sep}test_data_{current_time}.xlsx"
+generated_result_excel_file = f"{generated_result_folder}{os.sep}test_data_conv_blip_final{current_time}.xlsx"
 #generated_result_excel_file = EXCEL_FOLDER  + os.sep + "test_data.xlsx"
 xdf_dset_test = pd.read_excel(test_data_excel_file)#.head(10)
 
@@ -190,32 +190,37 @@ def metrics_func(metrics, aggregates, y_true, y_pred):
 
     return res_dict
 def model_definition():
-    model = BlipForQuestionAnswering.from_pretrained("Model/blip-saved-model")
+    # model = BlipForQuestionAnswering.from_pretrained("Model/blip-saved-model_12_epochs_augmented_images")
+    # model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
+    model = BlipForQuestionAnswering.from_pretrained("Model/conv-blip-finetuned-saved-model")
+
     model.to(device)
     return model
 def eval_model(test_gen,processor, list_of_metrics, list_of_agg):
     model = model_definition()
+    model.eval()
     data_list = []
-    for idx, batch in zip(tqdm(range(len(test_gen)), desc='Test batch: ...'), test_gen):
-        input_ids = batch[0].pop('input_ids').to(device)
-        pixel_values = batch[0].pop('pixel_values').to(device)
-        attention_masked = batch[0].pop('attention_mask').to(device)
-        image_paths = batch[1]
-        questions = batch[2]
-        answers = batch[3]
-        out = model.generate(input_ids=input_ids, pixel_values=pixel_values, attention_mask=attention_masked)
+    with torch.no_grad():
+        for idx, batch in zip(tqdm(range(len(test_gen)), desc='Test batch: ...'), test_gen):
+            input_ids = batch[0].pop('input_ids').to(device)
+            pixel_values = batch[0].pop('pixel_values').to(device)
+            attention_masked = batch[0].pop('attention_mask').to(device)
+            image_paths = batch[1]
+            questions = batch[2]
+            answers = batch[3]
+            out = model.generate(input_ids=input_ids, pixel_values=pixel_values, attention_mask=attention_masked)
 
-        for i in range(out.size(0)):
-            single_element = []
-            token_ids = out[i]
-            generated_text = processor.decode(token_ids, skip_special_tokens=True)
-            single_element.append(image_paths[i])
-            single_element.append(questions[i])
-            single_element.append(answers[i])
-            single_element.append(generated_text)
-            data_list.append(single_element)
+            for i in range(out.size(0)):
+                single_element = []
+                token_ids = out[i]
+                generated_text = processor.decode(token_ids, skip_special_tokens=True)
+                single_element.append(image_paths[i])
+                single_element.append(questions[i])
+                single_element.append(answers[i])
+                single_element.append(generated_text)
+                data_list.append(single_element)
     df = pd.DataFrame(data_list, columns=['image_path', 'question', 'target_answer', 'predicted_answer'])
-    #df.to_excel(generated_result_excel_file, index=False)
+    df.to_excel(generated_result_excel_file, index=False)
     print(f"saved to excel")
 
 

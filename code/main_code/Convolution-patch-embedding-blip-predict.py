@@ -34,7 +34,7 @@ generated_result_folder = EXCEL_FOLDER  + os.sep + 'generated_result'
 current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 if not os.path.exists(generated_result_folder):
     os.mkdir(generated_result_folder)
-generated_result_excel_file = f"{generated_result_folder}{os.sep}test_data_{current_time}.xlsx"
+generated_result_excel_file = f"{generated_result_folder}{os.sep}test_data_conv_finetune_unfreeze{current_time}.xlsx"
 #generated_result_excel_file = EXCEL_FOLDER  + os.sep + "test_data.xlsx"
 xdf_dset_test = pd.read_excel(test_data_excel_file)#.head(10)
 
@@ -190,12 +190,13 @@ def metrics_func(metrics, aggregates, y_true, y_pred):
 
     return res_dict
 def model_definition():
-    model = BlipForQuestionAnswering.from_pretrained("Model/blip-saved-model_12_epochs_augmented_images").to("cuda")
-    model2 = torch.load("Model/blip-conv-patch-embedding-finetune.pth")
-    new_weights = model2["encoder.conv1.weight"]
-    new_bias = model2["encoder.conv1.bias"]
-    model.state_dict()['vision_model.embeddings.patch_embedding.weight'].copy_(new_weights)
-    model.state_dict()['vision_model.embeddings.patch_embedding.bias'].copy_(new_bias)
+    # model = BlipForQuestionAnswering.from_pretrained("Model/blip-saved-model_12_epochs_augmented_images").to("cuda")
+    model = BlipForQuestionAnswering.from_pretrained("Model/conv-blip-finetuned-saved-model_1")
+    # model2 = torch.load("Model/blip-conv-patch-embedding-finetune.pth")
+    # new_weights = model2["encoder.conv1.weight"]
+    # new_bias = model2["encoder.conv1.bias"]
+    # model.state_dict()['vision_model.embeddings.patch_embedding.weight'].copy_(new_weights)
+    # model.state_dict()['vision_model.embeddings.patch_embedding.bias'].copy_(new_bias)
     model.to(device)
     return model
 def eval_model(test_gen,processor, list_of_metrics, list_of_agg):
@@ -220,7 +221,7 @@ def eval_model(test_gen,processor, list_of_metrics, list_of_agg):
             single_element.append(generated_text)
             data_list.append(single_element)
     df = pd.DataFrame(data_list, columns=['image_path', 'question', 'target_answer', 'predicted_answer'])
-    #df.to_excel(generated_result_excel_file, index=False)
+    df.to_excel(generated_result_excel_file, index=False)
     print(f"saved to excel")
 
 
