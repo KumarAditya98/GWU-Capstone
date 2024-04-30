@@ -6,8 +6,7 @@ import torch
 from PIL import Image
 from tqdm import tqdm
 from transformers import BlipProcessor, BlipForQuestionAnswering
-import pickle
-from debug_autoencoder import *
+from code.main_code.Discarded.BLIP_Vision_encoder_Decoder import *
 CUR_DIR = os.getcwd()
 CODE_DIR = os.path.dirname(CUR_DIR)
 PARENT_FOLDER = os.path.dirname(CODE_DIR)
