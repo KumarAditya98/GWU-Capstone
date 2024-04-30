@@ -6,7 +6,9 @@ from transformers import  BlipForQuestionAnswering,BlipProcessor
 #blipprocessor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
 
 #blip_vision_model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base").vision_model
-
+'''
+reference : https://github.com/hkproj/pytorch-transformer
+'''
 class LayerNormalization(nn.Module):
 
     def __init__(self, features: int, eps: float = 10 ** -6) -> None:
