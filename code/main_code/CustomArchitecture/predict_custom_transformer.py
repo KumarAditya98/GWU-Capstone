@@ -63,7 +63,7 @@ generated_result_folder = EXCEL_FOLDER  + os.sep + 'generated_result'
 current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 if not os.path.exists(generated_result_folder):
     os.mkdir(generated_result_folder)
-generated_result_excel_file = f"{generated_result_folder}{os.sep}test_data_{current_time}.xlsx"
+generated_result_excel_file = f"{generated_result_folder}{os.sep}test_dinference_simple(config,question_text,answer_text,image_path,device)ata_{current_time}.xlsx"
 #generated_result_excel_file = EXCEL_FOLDER  + os.sep + "test_data.xlsx"
 xdf_dset_test = pd.read_excel(test_data_excel_file)#.head(10)
 
@@ -222,7 +222,8 @@ def run_validation(model, test_ds, tokenizer, config, device):
             question_texts.extend(question_text)
             expected.extend(answer_text)
             predicted.extend(model_out_text_batch)
-
+    res = pd.DataFrame({'question':question_texts,'Target':expected, 'Predicted': predicted})
+    print(res.head(5))
     ############ Evaluation metric ######
     metric = torchmetrics.CharErrorRate()
     cer = metric(predicted, expected)
