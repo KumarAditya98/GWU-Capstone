@@ -59,7 +59,7 @@ xdf_data = pd.read_excel(combined_data_excel_file)
 
 test_data_excel_file = EXCEL_FOLDER  + os.sep + "test_data.xlsx"
 
-generated_result_folder = EXCEL_FOLDER  + os.sep + 'generated_result'
+generated_result_folder = EXCEL_FOLDER  + os.sep + 'generated_result_proposed_model'
 current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 if not os.path.exists(generated_result_folder):
     os.mkdir(generated_result_folder)
@@ -222,8 +222,12 @@ def run_validation(model, test_ds, tokenizer, config, device):
             question_texts.extend(question_text)
             expected.extend(answer_text)
             predicted.extend(model_out_text_batch)
-    res = pd.DataFrame({'question':question_texts,'Target':expected, 'Predicted': predicted})
-    print(res.head(5))
+    #print(xdf_dset_test.head(5).to_string())
+    images = xdf_dset_test['image_path'].values
+    res = pd.DataFrame({'image_path' :images, 'question':question_texts,'Target':expected, 'Predicted': predicted})
+    print(res.head(5).to_string())
+    res.to_excel(generated_result_excel_file, index=False)
+
     ############ Evaluation metric ######
     metric = torchmetrics.CharErrorRate()
     cer = metric(predicted, expected)
@@ -242,7 +246,7 @@ def run_validation(model, test_ds, tokenizer, config, device):
 
 def get_ds(config):
     test_ds = QuestionAnswerDataset(xdf_dset_test, tokenizer, config['answer_seq_len'], config['question_seq_len'])
-    test_dataloader = DataLoader(test_ds, batch_size=config['batch_size'], shuffle=True)
+    test_dataloader = DataLoader(test_ds, batch_size=config['batch_size'], shuffle=False)
     return test_dataloader
 
 if __name__ =="__main__":
