@@ -1,4 +1,5 @@
 <H1>Multimodal Fusion: Advancing Medical Visual Question Answering</H1>
+
 ![Proposed Architecture](https://github.com/KumarAditya98/GWU-Capstone/blob/main/code/component/ProposedArchitecture.png)
 
 ## OVERVIEW
