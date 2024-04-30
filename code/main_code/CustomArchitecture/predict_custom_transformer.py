@@ -241,7 +241,7 @@ def run_validation(model, test_ds, tokenizer, config, device):
 
 def get_ds(config):
     test_ds = QuestionAnswerDataset(xdf_dset_test, tokenizer, config['answer_seq_len'], config['question_seq_len'])
-    test_dataloader = DataLoader(test_ds, batch_size=20, shuffle=True)
+    test_dataloader = DataLoader(test_ds, batch_size=config['batch_size'], shuffle=True)
     return test_dataloader
 
 if __name__ =="__main__":

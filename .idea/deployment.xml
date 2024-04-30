@@ -1,7 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" remoteFilesAllowedToDisappearOnAutoupload="false" confirmBeforeUploading="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="Capstone (2)" remoteFilesAllowedToDisappearOnAutoupload="false" confirmBeforeUploading="false">
     <option name="confirmBeforeUploading" value="false" />
+    <serverData>
+      <paths name="Capstone (2)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/ubuntu/VQA" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath path="/home/ubuntu/VQA/dataset" />
+            <excludedPath path="/home/ubuntu/VQA/code/main_code/Model" />
+            <excludedPath path="/home/ubuntu/VQA/code/main_code/CustomArchitecture/Custom_model_weights" />
+          </excludedPaths>
+        </serverdata>
+      </paths>
+      <paths name="Capstone (project level)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/ubuntu/VQA" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath path="/home/ubuntu/VQA/dataset" />
+          </excludedPaths>
+        </serverdata>
+      </paths>
+    </serverData>
     <option name="myAutoUpload" value="ALWAYS" />
   </component>
 </project>
