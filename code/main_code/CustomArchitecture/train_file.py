@@ -35,8 +35,8 @@ if not os.path.exists(EXCEL_FOLDER):
     raise FileNotFoundError(f"The folder {EXCEL_FOLDER} does not exist. Load data and run preprocessing first!! Exiting the program.")
 combined_data_excel_file = EXCEL_FOLDER  + os.sep + "combined_aug_data.xlsx"
 xdf_data = pd.read_excel(combined_data_excel_file)
-train_ds_raw = xdf_data[xdf_data["split"] == 'train'].copy().reset_index().head(20)
-val_ds_raw = xdf_data[xdf_data["split"] == 'val'].copy().reset_index().head(20)
+train_ds_raw = xdf_data[xdf_data["split"] == 'train'].copy().reset_index()#.head(20)
+val_ds_raw = xdf_data[xdf_data["split"] == 'val'].copy().reset_index()#.head(20)
 #blip_model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
 
 #from transformers import  BlipForQuestionAnswering
@@ -182,7 +182,10 @@ def model_definition(config, vocab_len):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = build_transformer(vocab_len, config["question_seq_len"], config['answer_seq_len'], d_model=config['d_model'])
     model = model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=config['lr'], eps=1e-9)
+    optimizer = torch.optim.SGD(model.parameters(), lr=config['lr'], momentum=0.9)
+    for param in model.vision_model.parameters():
+        param.requires_grad = True
+    #optimizer = torch.optim.Adam(model.parameters(), lr=config['lr'], eps=1e-9)
     Path(f"{config['datasource']}_{config['model_folder']}").mkdir(parents=True, exist_ok=True)
     preload = config['preload']
     initial_epoch =0
