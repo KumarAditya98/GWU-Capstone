@@ -1,5 +1,5 @@
 <H1>Multimodal Fusion: Advancing Medical Visual Question Answering</H1>
-![Proposed Architecture](code/component/ProposedArchitecture.png)
+![Proposed Architecture](https://github.com/KumarAditya98/GWU-Capstone/blob/main/code/component/ProposedArchitecture.png)
 
 This project explores the application of Visual Question Answering (VQA) technology, which combines computer vision and natural language processing, in the medical domain, specifically for analyzing radiology scans. VQA can facilitate medical decision-making and improve patient outcomes by accurately interpreting medical imaging, which requires specialized expertise and time. The paper proposes developing an advanced VQA system for medical datasets using the BLIP architecture from Salesforce, leveraging deep learning and transfer learning techniques to handle the unique challenges of medical/radiology images. The paper discusses the underlying concepts, methodologies, and results of applying the BLIP architecture and fine-tuning approaches for Visual Question Answering in the medical domain, highlighting their effectiveness in addressing the complexities of VQA tasks for radiology scans. Inspired by the BLIP architecture from Salesforce, we propose a novel multimodal fusion approach for medical visual question answering and evaluating its promising potential.
 ## Folder Structure
