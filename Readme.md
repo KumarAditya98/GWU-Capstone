@@ -133,3 +133,11 @@ Here's an overview of the proposed architecture, along with the key files:
 Feel free to explore these files to gain a deeper understanding of the proposed architecture and its implementation.
 
 
+## Acknowledgement
+The implementation of our architecture builds upon resources from various sources, and we would like to extend our gratitude to the original authors for their open-sourcing:
+
+- BLIP: We leverage components inspired by the [BLIP](https://github.com/salesforce/BLIP)  VQA architecture.
+- Umar Jamil Transformers GitHub [Repository](https://github.com/hkproj/pytorch-transformer): Our implementation benefits from insights and techniques shared by Umar Jamil in their Transformers GitHub repository.
+- Dr. Amir Jafari: We acknowledge [Dr. Amir Jafari](https://github.com/amir-jafari) for their contributions and insights that have influenced our architecture's design.
+
+We are thankful to these individuals and projects for their valuable contributions, which have helped shape our work.
