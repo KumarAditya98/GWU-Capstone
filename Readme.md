@@ -116,19 +116,17 @@ Here's a brief overview of the key files in this repository:
 
 - ### Proposed Architecture Files
 
-Here's an overview of the proposed architecture, along with the key files:
+  - **config.py**: This file sets up the configurations for the new architecture's training process.
 
-- **config.py**: This file sets up the configurations for the new architecture's training process.
+  - **custom_image_question_answer.py**: Defines the complete architecture of the new model, drawing inspiration from the BLIP VQA Architecture. This architecture is then utilized in `train_file.py` to define the model.
 
-- **custom_image_question_answer.py**: Defines the complete architecture of the new model, drawing inspiration from the BLIP VQA Architecture. This architecture is then utilized in `train_file.py` to define the model.
+  - **dataset.py**: Defines the dataloader for the new architecture, facilitating data handling during training.
 
-- **dataset.py**: Defines the dataloader for the new architecture, facilitating data handling during training.
+  - **inference_custom.py**: Responsible for checking the model's results on a single image, aiding in inference tasks.
 
-- **inference_custom.py**: Responsible for checking the model's results on a single image, aiding in inference tasks.
+  - **predict_custom_transformer.py**: This script runs the trained model on the test set, providing insights into the model's performance on unseen data.
 
-- **predict_custom_transformer.py**: This script runs the trained model on the test set, providing insights into the model's performance on unseen data.
-
-- **train_file.py**: Manages the complete training routine of the proposed architecture, orchestrating the training process.
+  - **train_file.py**: Manages the complete training routine of the proposed architecture, orchestrating the training process.
 
 Feel free to explore these files to gain a deeper understanding of the proposed architecture and its implementation.
 
