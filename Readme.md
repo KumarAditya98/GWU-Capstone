@@ -132,7 +132,7 @@ Feel free to explore these files to gain a deeper understanding of the proposed 
 
 ## Downloading Trained Models
 
-To download the models we trained using our methodologies, run the following command in your Linux terminal:
+To download the models we trained using our methodologies, run the shell script download_models in your Linux terminal by running the following command:
 
 ```bash
 bash download_models.sh
