@@ -130,6 +130,22 @@ Here's a brief overview of the key files in this repository:
 
 Feel free to explore these files to gain a deeper understanding of the proposed architecture and its implementation.
 
+## Downloading Trained Models
+
+To download the models we trained using our methodologies, run the following command in your Linux terminal:
+
+```bash
+bash download_models.sh
+```
+
+You can plug in these models in the files you want to use by changing the following line of code:
+```python
+model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
+```
+Instead of "Salesforce/blip-vqa-base", change it to the preferred model folder.
+```python
+model = BlipForQuestionAnswering.from_pretrained("path/to/your/preferred/model")
+```
 
 ## Acknowledgement
 The implementation of our architecture builds upon resources from various sources, and we would like to extend our gratitude to the original authors for their open-sourcing:
