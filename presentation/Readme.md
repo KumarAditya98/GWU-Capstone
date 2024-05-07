@@ -1,3 +1,1 @@
-## Instruction for presentation
-
-- presentation need to be in pdf and ppt form
+This folder contains the presentation file in .pptx format and in .pdf format.
