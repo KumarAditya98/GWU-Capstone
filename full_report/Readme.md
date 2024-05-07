@@ -1,5 +1,3 @@
-## Instruction for full report
+This folder contains the report file which in .docx format and in .pdf format.
 
-- This is the place you put your full report here.
-- We provided some sample report in different forms.
-- Use those templates for your project report and documentation.
+The report has all the details of the various methodologies we tried including the ones that did not work as well.
